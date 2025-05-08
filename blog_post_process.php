@@ -59,46 +59,69 @@ $conn->close();
 ?>
 
 <!DOCTYPE html>
-
 <html lang="en">
-
-  <head>
-
+<head>
     <meta charset="UTF-8">
-
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>Post Saved</title>
-
     <link rel="stylesheet" href="styles/style.css">
+    <style>
+        .saved-container {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            font-family: "Roboto", sans-serif;
+        }
 
-  </head>
+        .saved-container h2 {
+            font-size: 24px;
+            color: #333;
+        }
 
-  <body>
+        .saved-container p {
+            font-size: 16px;
+            color: #555;
+        }
 
-    <div class="container" style="width: 50%; margin: auto; text-align: justify; font-family: Roboto, sans-serif;">
+        .saved-container img {
+            max-width: 100%;
+            height: auto;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
 
-      <h1 style="margin-bottom: 10px; text-align: center;">Post Saved</h1>
+        .saved-container a {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 16px;
+        }
 
-      <center><a style="color: dodgerblue;" href="index.php">Go to Home Page</a></center>
-      
-      <br><br>
-
-      <?php echo "<span style='font-weight: bold;' id='showTitle'>" . $blogTitle . "</span>" ?>
-      <br>
-
-      <span id="showDate"><?php echo $blogDate ?></span><br><br>
-
-      <center><img src="images/<?php echo $filename; ?>" id="showImage" style="width: 50%; height: auto;"></center>
-
-      <br>
-
-      <?php echo "<span id='showPara'>" . $blogPara . "</span>" ?>
-
-      <br><br>
-      
+        .saved-container a:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <span id="topBarTitle">Post Saved</span>
     </div>
-
-  </body>
-  
+    <div class="saved-container">
+        <h2><?php echo htmlspecialchars($blogTitle); ?></h2>
+        <p><small><?php echo htmlspecialchars($blogDate); ?></small></p>
+        <?php if (!empty($filename) && $filename !== "NONE"): ?>
+            <img src="images/<?php echo htmlspecialchars($filename); ?>" alt="Post Image">
+        <?php endif; ?>
+        <p><?php echo nl2br(htmlspecialchars($blogPara)); ?></p>
+        <a href="index.php">Go to Home Page</a>
+    </div>
+</body>
 </html>

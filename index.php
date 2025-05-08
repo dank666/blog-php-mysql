@@ -54,7 +54,7 @@
 
           echo "<p><small>" . htmlspecialchars($row["topic_date"]) . "</small></p>";
 
-          if (!empty($row["image_filename"])) {
+          if (!empty($row["image_filename"]) && $row["image_filename"] !== "NONE") {
             echo "<img src='images/" . htmlspecialchars($row["image_filename"]) . "' alt='Post Image' style='width: 100%; height: auto;'>";
           }
 
