@@ -24,13 +24,22 @@ if($conn->connect_error) die("Connection to database failed") . $conn->connect->
 
 $filename = "NONE";
 
-if(isset($_FILES['uploadimage']))
-{
-  $GLOBALS['filename'] = $_FILES['uploadimage']['name'];
-  
-  $tempname = $_FILES['uploadimage']['tmp_name'];
-  
-  move_uploaded_file($tempname, "images/" . $GLOBALS['filename']);
+if (isset($_FILES['uploadimage']) && $_FILES['uploadimage']['error'] === UPLOAD_ERR_OK) {
+    $filename = $_FILES['uploadimage']['name'];
+    $tempname = $_FILES['uploadimage']['tmp_name'];
+    $uploadDir = "images/";
+
+    // 确保目标目录存在
+    if (!is_dir($uploadDir)) {
+        mkdir($uploadDir, 0755, true);
+    }
+
+    // 移动上传的文件
+    if (move_uploaded_file($tempname, $uploadDir . $filename)) {
+        $filename = $conn->real_escape_string($filename); // 防止 SQL 注入
+    } else {
+        $filename = "NONE"; // 如果上传失败，设置为默认值
+    }
 }
 
 $sql = "insert into blog_table (topic_title, topic_date, image_filename, topic_para) values ('" . $blogTitle . "', '" . $blogDate . "', '" . $filename . "', '" . $blogPara . "');";
