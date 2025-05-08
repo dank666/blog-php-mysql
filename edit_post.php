@@ -24,67 +24,70 @@ if ($conn->connect_error) {
 
 // 处理表单提交
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $title = trim($_POST['blogtitle'] ?? '');
-    $date = trim($_POST['blogdate'] ?? '');
-    $para = trim($_POST['blogpara'] ?? '');
-    
-    // 验证必填字段
-    if (empty($title) || empty($date) || empty($para)) {
-        $error = "标题、日期和内容不能为空";
-    } else {
-        // 处理图片上传
-        $filename = $_POST['current_image'] ?? "NONE";
-        
-        if (isset($_FILES['uploadimage']) && $_FILES['uploadimage']['error'] === UPLOAD_ERR_OK) {
-            $tmpName = $_FILES['uploadimage']['tmp_name'];
-            $fileType = $_FILES['uploadimage']['type'];
-            $fileSize = $_FILES['uploadimage']['size'];
-            
-            // 验证文件类型和大小
-            if (!in_array($fileType, $config['upload']['allowed_types'])) {
-                $error = "错误：只允许上传JPG、PNG和GIF图片";
-            } elseif ($fileSize > $config['upload']['max_size']) {
-                $error = "错误：文件大小超过限制";
-            } else {
-                // 删除旧图片
-                if (!empty($filename) && $filename !== "NONE") {
-                    $oldImagePath = "images/" . $filename;
-                    if (file_exists($oldImagePath)) {
-                        unlink($oldImagePath);
-                    }
-                }
-                
-                // 生成唯一文件名
-                $extension = pathinfo($_FILES['uploadimage']['name'], PATHINFO_EXTENSION);
-                $filename = uniqid() . '.' . $extension;
-                $uploadDir = "images/";
-                
-                // 确保目标目录存在
-                if (!is_dir($uploadDir)) {
-                    mkdir($uploadDir, 0755, true);
-                }
-                
-                // 移动上传的文件
-                if (!move_uploaded_file($tmpName, $uploadDir . $filename)) {
-                    $error = "文件上传失败";
-                }
+    $postId = (int)$_POST['post_id'];
+    $title = trim($_POST['title'] ?? '');
+    $date = trim($_POST['date'] ?? '');
+    $content = trim($_POST['content'] ?? '');
+    $error = '';
+
+    // 检查必填字段
+    if (empty($title) || empty($date) || empty($content)) {
+        $error = "标题、日期和内容不能为空。";
+    }
+
+    // 检查图片上传
+    if (isset($_FILES['image']) && $_FILES['image']['error'] !== UPLOAD_ERR_NO_FILE) {
+        if ($_FILES['image']['error'] === UPLOAD_ERR_INI_SIZE) {
+            $error = "图片太大，请选择小于 " . ini_get('upload_max_filesize') . " 的图片。";
+        } elseif ($_FILES['image']['error'] !== UPLOAD_ERR_OK) {
+            $error = "图片上传失败，请重试。";
+        } else {
+            // 验证图片大小（2MB限制）
+            $maxFileSize = 2 * 1024 * 1024; // 2MB
+            if ($_FILES['image']['size'] > $maxFileSize) {
+                $error = "图片太大，请选择小于 2MB 的图片。";
             }
-        }
-        
-        if (!isset($error)) {
-            // 更新数据库
-            $stmt = $conn->prepare("UPDATE blog_table SET topic_title = ?, topic_date = ?, image_filename = ?, topic_para = ? WHERE id = ?");
-            $stmt->bind_param("ssssi", $title, $date, $filename, $para, $id);
-            
-            if ($stmt->execute()) {
-                header("Location: index.php");
-                exit;
-            } else {
-                $error = "更新博客失败: " . $stmt->error;
+
+            // 验证图片格式
+            $allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+            if (!in_array($_FILES['image']['type'], $allowedTypes)) {
+                $error = "图片格式不支持，仅支持 JPG、PNG 和 GIF 格式。";
             }
-            $stmt->close();
         }
     }
+
+    // 如果有错误，返回错误提示
+    if (!empty($error)) {
+        echo "<script>alert('$error'); window.history.back();</script>";
+        exit;
+    }
+
+    // 如果没有错误，处理图片上传
+    $imageFilename = null;
+    if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+        $uploadDir = 'images/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
+        $extension = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
+        $imageFilename = uniqid('post_') . '.' . $extension;
+
+        if (!move_uploaded_file($_FILES['image']['tmp_name'], $uploadDir . $imageFilename)) {
+            echo "<script>alert('图片上传失败，请重试。'); window.history.back();</script>";
+            exit;
+        }
+    }
+
+    // 更新帖子到数据库
+    $stmt = $conn->prepare("UPDATE blog_table SET topic_title = ?, topic_date = ?, topic_para = ?, image_filename = IFNULL(?, image_filename) WHERE id = ?");
+    $stmt->bind_param("ssssi", $title, $date, $content, $imageFilename, $postId);
+    if ($stmt->execute()) {
+        echo "<script>alert('帖子更新成功！'); window.location.href = 'index.php';</script>";
+    } else {
+        echo "<script>alert('帖子更新失败，请重试。'); window.history.back();</script>";
+    }
+    $stmt->close();
 }
 
 // 获取文章数据
@@ -122,13 +125,14 @@ $conn->close();
         <?php endif; ?>
 
         <form action="edit_post.php?id=<?php echo $id; ?>" method="POST" enctype="multipart/form-data">
-            <input id="blogTitle" name="blogtitle" type="text" placeholder="Blog Title..." autocomplete="off" 
+            <input type="hidden" name="post_id" value="<?php echo $id; ?>">
+            <input id="blogTitle" name="title" type="text" placeholder="Blog Title..." autocomplete="off" 
                    value="<?php echo htmlspecialchars($post['topic_title']); ?>">
             
             <br>
             
             <span id="dateLabel">Date: </span>
-            <input id="blogDate" name="blogdate" 
+            <input id="blogDate" name="date" 
                    value="<?php echo htmlspecialchars($post['topic_date']); ?>">
             
             <br><br>
@@ -138,17 +142,15 @@ $conn->close();
                     <p>当前图片：</p>
                     <img src="images/<?php echo htmlspecialchars($post['image_filename']); ?>" 
                          alt="Current Image" style="max-width:300px;">
-                    <input type="hidden" name="current_image" 
-                           value="<?php echo htmlspecialchars($post['image_filename']); ?>">
                 </div>
             <?php endif; ?>
             
-            <input type="file" name="uploadimage">
+            <input type="file" name="image">
             <p><small>选择新图片以替换当前图片，或留空保持当前图片不变</small></p>
             
             <br>
           
-            <textarea id="blogPara" name="blogpara" cols="75" rows="10" placeholder="博客内容..."><?php echo htmlspecialchars($post['topic_para']); ?></textarea>
+            <textarea id="blogPara" name="content" cols="75" rows="10" placeholder="博客内容..."><?php echo htmlspecialchars($post['topic_para']); ?></textarea>
 
             <br><br>
             

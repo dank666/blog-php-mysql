@@ -39,25 +39,24 @@ if ($userPage < 1) $userPage = 1;
 if ($postPage < 1) $postPage = 1;
 
 // 处理用户角色更改
-if (isset($_POST['update_role'])) {
-    // 验证CSRF令牌
-    if (!isset($_POST['csrf_token']) || !validateCSRFToken($_POST['csrf_token'])) {
-        $error = "安全验证失败，请重试";
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['user_id'], $_POST['role'])) {
+    $userId = (int)$_POST['user_id'];
+    $newRole = $_POST['role'];
+
+    // 确保第一个管理员的权限不能被修改
+    $firstAdminId = 1; // 假设第一个管理员的ID是1
+    if ($userId === $firstAdminId) {
+        $error = "无法修改第一个管理员的权限。";
     } else {
-        $userId = (int)$_POST['user_id'];
-        $newRole = $_POST['role'];
-        
-        if ($newRole === 'admin' || $newRole === 'user') {
-            $stmt = $conn->prepare("UPDATE users SET role = ? WHERE id = ?");
-            $stmt->bind_param("si", $newRole, $userId);
-            
-            if ($stmt->execute()) {
-                $success = "用户角色已更新";
-            } else {
-                $error = "更新角色失败: " . $conn->error;
-            }
-            $stmt->close();
+        // 更新用户角色
+        $stmt = $conn->prepare("UPDATE users SET role = ? WHERE id = ?");
+        $stmt->bind_param("si", $newRole, $userId);
+        if ($stmt->execute()) {
+            $success = "用户角色已更新。";
+        } else {
+            $error = "更新用户角色失败：" . $conn->error;
         }
+        $stmt->close();
     }
 }
 
@@ -363,11 +362,10 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
                                     <form method="POST" style="display: inline;">
                                         <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
                                         <input type="hidden" name="csrf_token" value="<?php echo generateCSRFToken(); ?>">
-                                        <select name="role" onchange="this.form.submit()">
+                                        <select name="role" onchange="this.form.submit()" <?php echo $user['id'] === 1 ? 'disabled' : ''; ?>>
                                             <option value="user" <?php echo $user['role'] === 'user' ? 'selected' : ''; ?>>用户</option>
                                             <option value="admin" <?php echo $user['role'] === 'admin' ? 'selected' : ''; ?>>管理员</option>
                                         </select>
-                                        <input type="hidden" name="update_role" value="1">
                                     </form>
                                 </td>
                                 <td><?php echo date('Y-m-d', strtotime($user['created_at'])); ?></td>

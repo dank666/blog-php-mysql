@@ -76,24 +76,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tmpName = $_FILES['avatar']['tmp_name'];
         $fileType = $_FILES['avatar']['type'];
         $fileSize = $_FILES['avatar']['size'];
-        
+
         // 验证文件
         if (!in_array($fileType, ['image/jpeg', 'image/png', 'image/gif'])) {
             $error = "头像必须是JPG、PNG或GIF格式";
-        } elseif ($fileSize > 2000000) { // 2MB
+        } elseif ($fileSize > 2 * 1024 * 1024) { // 2MB
             $error = "头像文件大小不能超过2MB";
         } else {
-            // 创建头像目录
+            // 处理文件上传逻辑
             $avatarDir = "avatars/";
             if (!is_dir($avatarDir)) {
                 mkdir($avatarDir, 0755, true);
             }
-            
-            // 生成唯一文件名
+
             $extension = pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION);
             $avatarFilename = uniqid('avatar_') . '.' . $extension;
-            
-            // 移动上传的文件
+
             if (!move_uploaded_file($tmpName, $avatarDir . $avatarFilename)) {
                 $error = "头像上传失败";
             } else {
@@ -294,6 +292,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <img src="<?php echo $avatarUrl; ?>" alt="当前头像" class="avatar-preview">
                 <input type="file" id="avatar" name="avatar" accept="image/*">
                 <small>支持JPG、PNG、GIF格式，大小不超过2MB</small>
+                <div id="fileError" style="color: red; margin-top: 10px;"></div>
             </div>
             
             <h2 class="section-title">修改密码</h2>
@@ -318,5 +317,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <button type="submit" class="save-btn">保存设置</button>
         </form>
     </div>
+
+    <script>
+        document.getElementById('avatar').addEventListener('change', function(event) {
+            const file = event.target.files[0]; // 获取用户选择的文件
+            const maxFileSize = 2 * 1024 * 1024; // 2MB
+            const fileError = document.getElementById('fileError'); // 错误消息显示区域
+
+            // 清空之前的错误消息
+            fileError.textContent = '';
+
+            if (file && file.size > maxFileSize) {
+                // 文件大小超过限制，显示错误消息
+                fileError.textContent = '图片太大，请选择小于2MB的图片。';
+                // 清空文件输入框
+                event.target.value = '';
+            }
+        });
+    </script>
 </body>
 </html>

@@ -10,15 +10,8 @@ include 'includes/auth.php';
 // 要求用户登录才能发布文章
 requireLogin();
 
-// 获取表单数据
-$blogTitle = trim($_POST["blogtitle"] ?? '');
-$blogDate = trim($_POST["blogdate"] ?? '');
-$blogPara = trim($_POST["blogpara"] ?? '');
-
-// 验证必填字段
-if (empty($blogTitle) || empty($blogDate) || empty($blogPara)) {
-    die("错误：标题、日期和内容不能为空");
-}
+// 开启 session，用于保存用户输入
+session_start();
 
 // 连接数据库
 $conn = new mysqli(
@@ -32,52 +25,91 @@ if ($conn->connect_error) {
     die("数据库连接失败: " . $conn->connect_error);
 }
 
-// 处理文件上传
-$filename = "NONE";
-if (isset($_FILES['uploadimage']) && $_FILES['uploadimage']['error'] === UPLOAD_ERR_OK) {
-    $tmpName = $_FILES['uploadimage']['tmp_name'];
-    $fileType = $_FILES['uploadimage']['type'];
-    $fileSize = $_FILES['uploadimage']['size'];
-    
-    // 验证文件类型和大小
-    if (!in_array($fileType, ['image/jpeg', 'image/png', 'image/gif'])) {
-        die("错误：只允许上传JPG、PNG和GIF图片");
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // 确保字段名称与表单一致
+    $title = trim($_POST['blogtitle'] ?? '');
+    $date = trim($_POST['blogdate'] ?? '');
+    $content = trim($_POST['blogpara'] ?? '');
+    $error = '';
+
+    // 保存用户输入到 session
+    $_SESSION['blogtitle'] = $title;
+    $_SESSION['blogdate'] = $date;
+    $_SESSION['blogpara'] = $content;
+
+    // 检查必填字段
+    if (empty($title) || empty($date) || empty($content)) {
+        $error = "标题、日期和内容不能为空。";
     }
-    
-    if ($fileSize > 5000000) { // 5MB
-        die("错误：文件大小超过限制");
-    }
-    
-    // 生成唯一文件名避免冲突
-    $extension = pathinfo($_FILES['uploadimage']['name'], PATHINFO_EXTENSION);
-    $filename = uniqid() . '.' . $extension;
-    $uploadDir = "images/";
-    
-    // 确保目标目录存在
-    if (!is_dir($uploadDir)) {
-        if (!mkdir($uploadDir, 0755, true)) {
-            die("创建上传目录失败");
+
+    // 检查图片上传
+    $imageFilename = 'NONE';
+    if (isset($_FILES['uploadimage']) && $_FILES['uploadimage']['error'] !== UPLOAD_ERR_NO_FILE) {
+        if ($_FILES['uploadimage']['error'] === UPLOAD_ERR_INI_SIZE) {
+            $error = "图片太大，请选择小于 " . ini_get('upload_max_filesize') . " 的图片。";
+        } elseif ($_FILES['uploadimage']['error'] !== UPLOAD_ERR_OK) {
+            $error = "图片上传失败，请重试。";
+        } else {
+            // 验证图片大小（2MB限制）
+            $maxFileSize = 2 * 1024 * 1024; // 2MB
+            if ($_FILES['uploadimage']['size'] > $maxFileSize) {
+                $error = "图片太大，请选择小于 2MB 的图片。";
+            } else {
+                // 处理图片上传
+                $uploadDir = 'images/';
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0755, true);
+                }
+
+                $extension = pathinfo($_FILES['uploadimage']['name'], PATHINFO_EXTENSION);
+                $imageFilename = uniqid('post_') . '.' . $extension;
+
+                if (!move_uploaded_file($_FILES['uploadimage']['tmp_name'], $uploadDir . $imageFilename)) {
+                    $error = "图片上传失败，请重试。";
+                }
+            }
         }
     }
-    
-    // 移动上传的文件
-    if (!move_uploaded_file($tmpName, $uploadDir . $filename)) {
-        die("文件上传失败");
+
+    // 如果有错误，返回错误提示，保留用户输入
+    if (!empty($error)) {
+        echo "<script>
+            localStorage.setItem('blogtitle', " . json_encode($title) . ");
+            localStorage.setItem('blogpara', " . json_encode($content) . ");
+            alert('" . $error . "'); 
+            window.location.href = 'index.html';
+        </script>";
+        exit;
     }
+
+    // 获取当前用户ID
+    $currentUser = getCurrentUserId();
+
+    // 插入帖子到数据库
+    $stmt = $conn->prepare("INSERT INTO blog_table (topic_title, topic_date, topic_para, image_filename, user_id) VALUES (?, ?, ?, ?, ?)");
+    $stmt->bind_param("ssssi", $title, $date, $content, $imageFilename, $currentUser);
+    if ($stmt->execute()) {
+        // 清除 session 数据和 localStorage
+        unset($_SESSION['blogtitle']);
+        unset($_SESSION['blogdate']);
+        unset($_SESSION['blogpara']);
+        echo "<script>
+            localStorage.removeItem('blogtitle');
+            localStorage.removeItem('blogpara');
+            alert('帖子发布成功！'); 
+            window.location.href = 'index.php';
+        </script>";
+    } else {
+        echo "<script>
+            localStorage.setItem('blogtitle', " . json_encode($title) . ");
+            localStorage.setItem('blogpara', " . json_encode($content) . ");
+            alert('发布失败，请重试。'); 
+            window.location.href = 'index.html';
+        </script>";
+    }
+    $stmt->close();
 }
 
-// 获取当前用户ID
-$userId = getCurrentUserId();
-
-// 使用参数化查询插入数据，包括用户ID
-$stmt = $conn->prepare("INSERT INTO blog_table (topic_title, topic_date, image_filename, topic_para, user_id) VALUES (?, ?, ?, ?, ?)");
-$stmt->bind_param("ssssi", $blogTitle, $blogDate, $filename, $blogPara, $userId);
-
-if (!$stmt->execute()) {
-    die("保存博客失败: " . $stmt->error);
-}
-
-$stmt->close();
 $conn->close();
 ?>
 
@@ -143,12 +175,12 @@ $conn->close();
         <span id="topBarTitle">文章已保存</span>
     </div>
     <div class="saved-container">
-        <h2><?php echo htmlspecialchars($blogTitle); ?></h2>
-        <p><small><?php echo htmlspecialchars($blogDate); ?></small></p>
-        <?php if (!empty($filename) && $filename !== "NONE"): ?>
-            <img src="images/<?php echo htmlspecialchars($filename); ?>" alt="文章图片">
+        <h2><?php echo htmlspecialchars($title); ?></h2>
+        <p><small><?php echo htmlspecialchars($date); ?></small></p>
+        <?php if (!empty($imageFilename) && $imageFilename !== "NONE"): ?>
+            <img src="images/<?php echo htmlspecialchars($imageFilename); ?>" alt="文章图片">
         <?php endif; ?>
-        <p><?php echo nl2br(htmlspecialchars($blogPara)); ?></p>
+        <p><?php echo nl2br(htmlspecialchars($content)); ?></p>
         <a href="index.php">返回首页</a>
     </div>
 </body>
