@@ -15,11 +15,16 @@ fi
 echo "停止 Apache 服务..."
 sudo service apache2 stop
 
+<<<<<<< HEAD
 # 删除旧版本时保留 images 文件夹
 if [ -d "$TARGET_DIR" ]; then
     echo "保留 images 文件夹..."
     sudo mkdir -p /tmp/images_backup
     sudo rsync -a "$TARGET_DIR/images/" /tmp/images_backup/
+=======
+# 删除旧版本
+if [ -d "$TARGET_DIR" ]; then
+>>>>>>> 6052a8211d828832d7d8a83fdf3f2ee96963aecc
     echo "删除旧版本目录 $TARGET_DIR..."
     sudo rm -rf "$TARGET_DIR"
 fi
@@ -28,6 +33,7 @@ fi
 echo "复制新版本到 $TARGET_DIR..."
 sudo cp -r "$SOURCE_DIR" /var/www/html/
 
+<<<<<<< HEAD
 # 恢复 images 文件夹
 if [ -d "/tmp/images_backup" ]; then
     echo "恢复 images 文件夹..."
@@ -36,6 +42,8 @@ if [ -d "/tmp/images_backup" ]; then
     sudo rm -rf /tmp/images_backup
 fi
 
+=======
+>>>>>>> 6052a8211d828832d7d8a83fdf3f2ee96963aecc
 # 设置权限
 echo "设置目录权限..."
 sudo chown -R www-data:www-data "$TARGET_DIR"
