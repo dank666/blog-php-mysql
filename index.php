@@ -40,7 +40,7 @@
 
       if($conn->connect_error) die("Connection Error" . $conn->connect_error);
 
-      $sql = "select id, topic_title, topic_date, image_filename, topic_para from blog_table;";
+      $sql = "SELECT id, topic_title, topic_date, image_filename, topic_para FROM blog_table;";
 
       $result = $conn->query($sql);
 
@@ -48,15 +48,17 @@
       {
         while($row = $result->fetch_assoc())
         {
-          echo "<div style='padding: 25px 25px;' class='post-container'>";
+          echo "<div class='post-container'>";
 
-          echo "<span id='displayTitle'>" . $row["topic_title"] . "</span><br>";
+          echo "<h2>" . htmlspecialchars($row["topic_title"]) . "</h2>";
 
-          echo "<span id='displayDate'>" . $row["topic_date"] . "</span><br><br>";
+          echo "<p><small>" . htmlspecialchars($row["topic_date"]) . "</small></p>";
 
-          echo "<img style='width: 100%; height: auto' id='displayImage' src='images/" . $row["image_filename"] . "'><br>"; 
+          if (!empty($row["image_filename"])) {
+            echo "<img src='images/" . htmlspecialchars($row["image_filename"]) . "' alt='Post Image' style='width: 100%; height: auto;'>";
+          }
 
-          echo "<p style='overflow: hidden; display: -webkit-box; -webkit-line-clamp: 10; line-clamp: 10; -webkit-box-orient: vertical;' id='displayPara'>" . $row["topic_para"] . "</p><br>";
+          echo "<p>" . nl2br(htmlspecialchars($row["topic_para"])) . "</p>";
 
           echo "<button class='delete-post-btn' data-post-id='" . $row["id"] . "'>删除</button>";
 
@@ -69,8 +71,6 @@
       else
       {
         echo "<center><span>No Blog Posts Found</span></center>";
-      
-        // echo "<center><a style='color: dodgerblue;' href='index.html'>Write a New Post</a></center>";
       }
 
       $conn->close();
@@ -79,7 +79,9 @@
 
     </div>
 
-    <?php echo "<br><center><a style='color: dodgerblue; text-decoration: none; background: dodgerblue; padding: 5px 25px; color: #fff; border-radius: 50px;' href='index.html'>Write a New Post</a></center><br>"; ?>
+    <center>
+      <a href="index.html" class="btn">撰写新文章</a>
+    </center>
 
     <script>
     // 删除帖子功能
