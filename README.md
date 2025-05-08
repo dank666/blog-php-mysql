@@ -65,7 +65,7 @@ blog-php-mysql/
    ```
 
 5. **访问项目**
-   - 浏览器访问： [http://localhost/blog-php-mysql](http://localhost/blog-php-mysql)
+   - 浏览器访问： [http://localhost/blog-php-mysql/login.php](http://localhost/blog-php-mysql/login.php)
 
 ## 使用说明
 
