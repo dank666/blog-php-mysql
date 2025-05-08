@@ -1,94 +1,90 @@
-# PHP 和 MySQL 简易博客系统
+# PHP + MySQL 简易博客系统
 
-这是一个简易的博客系统，提供了一个用户友好的平台，供博主在线发布文章。该系统使用 PHP 作为后端语言，并通过 MySQL 数据库存储博客文章。用户可以撰写博客文章、添加图片并将其发布到博客中。
+这是一个基于 PHP 和 MySQL 的简易博客系统，支持文章的发布、图片上传、文章展示、编辑和删除。适合初学者学习 PHP 与 MySQL 的基本用法和 Web 项目部署流程。
 
-本项目适合作为开发者学习和构建基于 PHP 和 MySQL 的博客系统的起点。
+## 功能简介
 
-## 项目设置
+- **文章发布**：支持输入标题、正文、日期和上传图片。
+- **文章展示**：首页展示所有已发布的文章，支持图片显示。
+- **文章编辑与删除**：可对已发布的文章进行编辑和删除操作。
+- **自动换行优化**：支持中英文内容自动换行，防止英文长串溢出页面。
+- **图片安全上传**：上传图片自动保存到 `images/` 目录。
+- **一键部署脚本**：提供 `deploy.sh` 脚本，便于快速部署和升级。
 
-1. **安装必要的软件**  
-   在 Linux 系统中，您需要安装以下软件：
-   - Apache 服务器
-   - MySQL 数据库
-   - PHP
+## 项目结构
 
-   可以通过以下命令安装这些软件（以基于 Debian 的系统为例，如 Ubuntu）：
+```
+blog-php-mysql/
+├── styles/
+│   └── style.css
+├── images/
+├── scripts/
+│   └── script.js
+├── blog_post_process.php
+├── index.html
+├── index.php
+├── delete_post.php
+├── edit_post.php
+├── deploy.sh
+└── README.md
+```
+
+## 环境准备
+
+1. **安装依赖**
    ```bash
    sudo apt update
-   sudo apt install apache2 mysql-server php libapache2-mod-php php-mysql
+   sudo apt install apache2 mysql-server php libapache2-mod-php php-mysql rsync
    ```
 
-2. **项目文件结构**  
-   将下载的项目文件夹解压到 Apache 的默认 Web 根目录 `/var/www/html/` 下。文件结构可能如下所示：
+2. **部署项目**
+   - 将本项目文件夹复制到 `/var/www/html/` 下。
+   - 设置权限：
+     ```bash
+     sudo chown -R www-data:www-data /var/www/html/blog-php-mysql
+     sudo chmod -R 755 /var/www/html/blog-php-mysql
+     ```
 
-   ```
-   /var/www/html/
-   |----blog-php-mysql
-        |----styles
-             |----style.css
-        |----images
-        |----scripts
-             |----script.js
-        |----blog_post_process.php
-        |----index.html
-        |----index.php
-        |----delete_post.php
-        |----edit_post.php
-        |----README.md
+3. **创建数据库和数据表**
+   ```sql
+   CREATE DATABASE blog_db;
+   USE blog_db;
+   CREATE TABLE blog_table (
+       id INT AUTO_INCREMENT PRIMARY KEY,
+       topic_title TEXT NOT NULL,
+       topic_date TEXT NOT NULL,
+       image_filename TEXT NOT NULL,
+       topic_para TEXT NOT NULL
+   );
    ```
 
-   设置文件夹权限以确保 Apache 能够访问：
+4. **启动服务**
    ```bash
-   sudo chown -R www-data:www-data /var/www/html/blog-php-mysql
-   sudo chmod -R 755 /var/www/html/blog-php-mysql
+   sudo service mysql start
+   sudo service apache2 start
    ```
 
-3. **创建数据库**  
-   - 启动 MySQL 服务：
-     ```bash
-     sudo service mysql start
-     ```
-   - 登录 MySQL：
-     ```bash
-     sudo mysql -u root -p
-     ```
-   - 创建数据库和表：
-     ```sql
-     CREATE DATABASE blog_db;
-     USE blog_db;
-     CREATE TABLE blog_table (
-         id INT AUTO_INCREMENT PRIMARY KEY,
-         topic_title TEXT NOT NULL,
-         topic_date TEXT NOT NULL,
-         topic_para TEXT NOT NULL
-     );
-     ```
-   - 退出 MySQL：
-     ```bash
-     exit
-     ```
+5. **访问项目**
+   - 浏览器访问： [http://localhost/blog-php-mysql](http://localhost/blog-php-mysql)
 
-4. **测试项目**  
-   - 启动 Apache 服务：
-     ```bash
-     sudo service apache2 start
-     ```
-   - 在浏览器中访问 <http://localhost/blog-php-mysql>。
-   - 在 `index.php` 页面中可以查看所有已创建的文章，并通过页面底部的“撰写新文章”按钮跳转到 `index.html` 页面进行文章创建。
+## 使用说明
 
-## 功能特性
+- **首页（index.php）**：浏览所有文章，可编辑/删除。
+- **撰写新文章（index.html）**：填写内容并上传图片，点击保存即可发布。
+- **图片存储**：所有上传图片保存在 `images/` 文件夹。
+- **自动换行**：已优化英文长串自动换行，防止页面溢出。
 
-- **文章展示**  
-  在首页 `index.php` 中展示所有已创建的文章。
+## 部署脚本
 
-- **自动插入日期**  
-  在创建文章时，系统会自动插入当前日期和时间。
+- `deploy.sh` 支持自动备份 `images/` 文件夹，升级时不会丢失图片。
 
-- **未来功能计划**  
-  本项目计划在未来增加以下功能：
-  - **多用户支持**：允许多个用户注册和登录，管理各自的文章。
-  - **用户评论**：为每篇文章添加评论功能，提升互动性。
-  - **文章搜索**：支持通过关键词搜索文章。
-  - **热点文章排名**：根据文章的浏览量或互动量，展示热门文章排行榜。
+## 未来计划
 
-欢迎对本项目提出建议或贡献代码！
+- 多用户支持
+- 评论功能
+- 文章搜索
+- 热门文章排行
+
+---
+
+如有建议或问题，欢迎反馈与贡献！
