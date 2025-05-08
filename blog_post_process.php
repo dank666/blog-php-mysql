@@ -6,7 +6,7 @@ $servername = "localhost";
 
 $username = "root";
 
-$password = "";
+$password = "www.041217.wtj";
 
 $database = "blog_db"; 
 

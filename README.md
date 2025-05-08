@@ -17,16 +17,17 @@ This application can be used as a starting point for developers who want to buil
 C:
 |----XAMPP
      |----htdocs
-          |----blog-using-php-mysql-main
+          |----blog-php-mysql
                |----styles
                     |----style.css
-               |----media
                |----images
                |----scripts
                     |----script.js
                |----blog_post_process.php
                |----index.html
                |----index.php
+               |----delete_post.php
+               |----edit_post.php
                |----README.md
 ```
 
@@ -55,11 +56,3 @@ C:
 - Current date and time will be automatically inserted into the post during the time of post creation.
 
 - Major feature of user account creation and displaying dynamic content for each user is pending.
-
-- More features like post deletion, editing existing post and more will be addded soon.
-
-## Screenshots
-
-![blog-using-php-mysql](https://raw.githubusercontent.com/kshitizrohilla/blog-using-php-mysql/main/media/screenshot1.jpg)
-![blog-using-php-mysql](https://raw.githubusercontent.com/kshitizrohilla/blog-using-php-mysql/main/media/screenshot2.jpg)
-![blog-using-php-mysql](https://raw.githubusercontent.com/kshitizrohilla/blog-using-php-mysql/main/media/screenshot3.jpg)

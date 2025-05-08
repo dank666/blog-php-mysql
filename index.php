@@ -32,7 +32,7 @@
 
       $username = "root";
 
-      $password = "";
+      $password = "www.041217.wtj";
 
       $database = "blog_db";
 
@@ -40,7 +40,7 @@
 
       if($conn->connect_error) die("Connection Error" . $conn->connect_error);
 
-      $sql = "select topic_title, topic_date, image_filename, topic_para from blog_table;";
+      $sql = "select id, topic_title, topic_date, image_filename, topic_para from blog_table;";
 
       $result = $conn->query($sql);
 
@@ -57,7 +57,11 @@
           echo "<img style='width: 100%; height: auto' id='displayImage' src='images/" . $row["image_filename"] . "'><br>"; 
 
           echo "<p style='overflow: hidden; display: -webkit-box; -webkit-line-clamp: 10; line-clamp: 10; -webkit-box-orient: vertical;' id='displayPara'>" . $row["topic_para"] . "</p><br>";
-          
+
+          echo "<button class='delete-post-btn' data-post-id='" . $row["id"] . "'>删除</button>";
+
+          echo "<button class='edit-post-btn' data-post-id='" . $row["id"] . "'>编辑</button>";
+
           echo "</div>";
         }
       }
@@ -76,6 +80,40 @@
     </div>
 
     <?php echo "<br><center><a style='color: dodgerblue; text-decoration: none; background: dodgerblue; padding: 5px 25px; color: #fff; border-radius: 50px;' href='index.html'>Write a New Post</a></center><br>"; ?>
+
+    <script>
+    // 删除帖子功能
+    document.querySelectorAll('.delete-post-btn').forEach(button => {
+        button.addEventListener('click', function () {
+            const postId = this.getAttribute('data-post-id');
+            if (confirm('确定要删除这篇帖子吗？')) {
+                fetch('delete_post.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `post_id=${postId}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert('帖子已删除');
+                        location.reload();
+                    } else {
+                        alert(data.message);
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+            }
+        });
+    });
+
+    // 编辑帖子功能
+    document.querySelectorAll('.edit-post-btn').forEach(button => {
+        button.addEventListener('click', function () {
+            const postId = this.getAttribute('data-post-id');
+            window.location.href = `edit_post.php?id=${postId}`;
+        });
+    });
+    </script>
 
   </body>
   
