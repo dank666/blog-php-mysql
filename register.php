@@ -17,7 +17,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
     $confirm_password = $_POST['confirm_password'] ?? '';
-    $display_name = trim($_POST['display_name'] ?? $username);
+    $display_name = trim($_POST['display_name'] ?? '');
+    
+    // 如果未填写显示名称，则使用用户名作为显示名称
+    if (empty($display_name)) {
+        $display_name = $username;
+    }
     
     // 基本验证
     if (empty($username) || empty($email) || empty($password)) {
@@ -51,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 // 创建新用户
                 $password_hash = password_hash($password, PASSWORD_DEFAULT);
-                $stmt = $conn->prepare("INSERT INTO users (username, email, password_hash, display_name) VALUES (?, ?, ?, ?)");
+                $stmt = $conn->prepare("INSERT INTO users (username, email, password_hash, display_name, created_at) VALUES (?, ?, ?, ?, NOW())");
                 $stmt->bind_param("ssss", $username, $email, $password_hash, $display_name);
                 
                 if ($stmt->execute()) {

@@ -61,6 +61,45 @@ $isOwnProfile = isLoggedIn() && getCurrentUserId() == $profileId;
 
 // 获取当前登录用户
 $currentUser = getCurrentUser();
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $error = '';
+    $success = '';
+
+    // 检查是否上传了文件
+    if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
+        $file = $_FILES['avatar'];
+        $maxFileSize = 2 * 1024 * 1024; // 2MB
+
+        // 检查文件大小
+        if ($file['size'] > $maxFileSize) {
+            $error = "图片太大，请选择小于2MB的图片。";
+        } else {
+            // 处理文件上传
+            $uploadDir = 'avatars/';
+            $fileName = uniqid() . '_' . basename($file['name']);
+            $uploadPath = $uploadDir . $fileName;
+
+            if (move_uploaded_file($file['tmp_name'], $uploadPath)) {
+                // 更新数据库中的头像路径
+                $stmt = $conn->prepare("UPDATE users SET avatar = ? WHERE id = ?");
+                $stmt->bind_param("si", $fileName, $currentUser['id']);
+                if ($stmt->execute()) {
+                    $success = "头像更新成功！";
+                } else {
+                    $error = "更新头像失败，请稍后再试。";
+                }
+                $stmt->close();
+            } else {
+                $error = "上传头像失败，请稍后再试。";
+            }
+        }
+    } elseif (isset($_FILES['avatar']) && $_FILES['avatar']['error'] !== UPLOAD_ERR_NO_FILE) {
+        $error = "上传头像失败，请检查文件并重试。";
+    }
+
+    // 其他表单处理逻辑...
+}
 ?>
 <!DOCTYPE html>
 <html lang="zh">
