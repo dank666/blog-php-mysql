@@ -1,30 +1,61 @@
 <?php
-$servername = "localhost";
-$username = "root";
-$password = "www.041217.wtj";
-$database = "blog_db";
+// 加载配置
+$config = include 'config.php';
 
-$conn = new mysqli($servername, $username, $password, $database);
+// 验证ID参数
+if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+    die("错误：无效的文章ID");
+}
+
+$id = (int)$_GET['id'];
+
+// 连接数据库
+$conn = new mysqli(
+    $config['db']['host'],
+    $config['db']['username'],
+    $config['db']['password'],
+    $config['db']['database']
+);
 
 if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+    die("数据库连接失败: " . $conn->connect_error);
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['post_id'])) {
-    $post_id = intval($_POST['post_id']);
+// 先获取图片文件名
+$stmt = $conn->prepare("SELECT image_filename FROM blog_table WHERE id = ?");
+$stmt->bind_param("i", $id);
+$stmt->execute();
+$result = $stmt->get_result();
 
-    $sql = "DELETE FROM blog_table WHERE id = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("i", $post_id);
-
-    if ($stmt->execute()) {
-        echo json_encode(['status' => 'success', 'message' => '帖子已删除']);
-    } else {
-        echo json_encode(['status' => 'error', 'message' => '删除失败']);
+if ($result->num_rows > 0) {
+    $row = $result->fetch_assoc();
+    $filename = $row['image_filename'];
+    
+    // 如果有图片且不是默认的NONE，则删除该图片
+    if (!empty($filename) && $filename !== "NONE") {
+        $imagePath = "images/" . $filename;
+        if (file_exists($imagePath)) {
+            unlink($imagePath);
+        }
     }
-
-    $stmt->close();
+    
+    // 删除文章记录
+    $deleteStmt = $conn->prepare("DELETE FROM blog_table WHERE id = ?");
+    $deleteStmt->bind_param("i", $id);
+    
+    if ($deleteStmt->execute()) {
+        // 删除成功
+        header("Location: index.php");
+        exit;
+    } else {
+        echo "删除文章失败: " . $conn->error;
+    }
+    
+    $deleteStmt->close();
+} else {
+    echo "文章不存在";
 }
 
+$stmt->close();
 $conn->close();
 ?>

@@ -1,61 +1,77 @@
 <?php
+// 启用错误报告
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
-// error_reporting(0);
+// 加载配置
+$config = include 'config.php';
 
-$servername = "localhost";
+// 获取表单数据
+$blogTitle = trim($_POST["blogtitle"] ?? '');
+$blogDate = trim($_POST["blogdate"] ?? '');
+$blogPara = trim($_POST["blogpara"] ?? '');
 
-$username = "root";
+// 验证必填字段
+if (empty($blogTitle) || empty($blogDate) || empty($blogPara)) {
+    die("错误：标题、日期和内容不能为空");
+}
 
-$password = "www.041217.wtj";
+// 连接数据库
+$conn = new mysqli(
+    $config['db']['host'], 
+    $config['db']['username'], 
+    $config['db']['password'], 
+    $config['db']['database']
+);
 
-$database = "blog_db"; 
+if ($conn->connect_error) {
+    die("数据库连接失败: " . $conn->connect_error);
+}
 
-$blogTitle = $_POST["blogtitle"];
-
-$blogDate = $_POST["blogdate"];
-
-$blogPara = $_POST["blogpara"];
-
-// $sql = "insert into blog_table (topic_title, topic_date, image_filename, topic_para) values ('" . $blogTitle . "', '" . $blogDate . "', '" . $filename . "', '" . $blogPara . "');";
-
-$conn = new mysqli($servername, $username, $password, $database);
-
-if($conn->connect_error) die("Connection to database failed") . $conn->connect->error;
-
+// 处理文件上传
 $filename = "NONE";
-
 if (isset($_FILES['uploadimage']) && $_FILES['uploadimage']['error'] === UPLOAD_ERR_OK) {
-    $filename = $_FILES['uploadimage']['name'];
-    $tempname = $_FILES['uploadimage']['tmp_name'];
+    $tmpName = $_FILES['uploadimage']['tmp_name'];
+    $fileType = $_FILES['uploadimage']['type'];
+    $fileSize = $_FILES['uploadimage']['size'];
+    
+    // 验证文件类型和大小
+    if (!in_array($fileType, $config['upload']['allowed_types'])) {
+        die("错误：只允许上传JPG、PNG和GIF图片");
+    }
+    
+    if ($fileSize > $config['upload']['max_size']) {
+        die("错误：文件大小超过限制");
+    }
+    
+    // 生成唯一文件名避免冲突
+    $extension = pathinfo($_FILES['uploadimage']['name'], PATHINFO_EXTENSION);
+    $filename = uniqid() . '.' . $extension;
     $uploadDir = "images/";
-
+    
     // 确保目标目录存在
     if (!is_dir($uploadDir)) {
-        mkdir($uploadDir, 0755, true);
+        if (!mkdir($uploadDir, 0755, true)) {
+            die("创建上传目录失败");
+        }
     }
-
+    
     // 移动上传的文件
-    if (move_uploaded_file($tempname, $uploadDir . $filename)) {
-        $filename = $conn->real_escape_string($filename); // 防止 SQL 注入
-    } else {
-        $filename = "NONE"; // 如果上传失败，设置为默认值
+    if (!move_uploaded_file($tmpName, $uploadDir . $filename)) {
+        die("文件上传失败");
     }
 }
 
-$sql = "insert into blog_table (topic_title, topic_date, image_filename, topic_para) values ('" . $blogTitle . "', '" . $blogDate . "', '" . $filename . "', '" . $blogPara . "');";
+// 使用参数化查询插入数据
+$stmt = $conn->prepare("INSERT INTO blog_table (topic_title, topic_date, image_filename, topic_para) VALUES (?, ?, ?, ?)");
+$stmt->bind_param("ssss", $blogTitle, $blogDate, $filename, $blogPara);
 
-if($conn->query($sql) === TRUE)
-{
-  echo "";
+if (!$stmt->execute()) {
+    die("保存博客失败: " . $stmt->error);
 }
 
-else
-{
-  echo "Error Saving Post";
-}
-
+$stmt->close();
 $conn->close();
-
 ?>
 
 <!DOCTYPE html>
@@ -67,14 +83,10 @@ $conn->close();
     <link rel="stylesheet" href="styles/style.css">
     <style>
         .saved-container {
-            max-width: 800px;
-            margin: 50px auto;
-            padding: 20px;
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-            text-align: center;
             font-family: "Roboto", sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
         }
 
         .saved-container h2 {
@@ -85,6 +97,8 @@ $conn->close();
         .saved-container p {
             font-size: 16px;
             color: #555;
+            word-break: break-all;
+            overflow-wrap: break-word;
         }
 
         .saved-container img {
