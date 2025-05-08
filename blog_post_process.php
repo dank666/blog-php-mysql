@@ -3,8 +3,12 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// 加载配置
+// 加载配置和认证
 $config = include 'config.php';
+include 'includes/auth.php';
+
+// 要求用户登录才能发布文章
+requireLogin();
 
 // 获取表单数据
 $blogTitle = trim($_POST["blogtitle"] ?? '');
@@ -36,11 +40,11 @@ if (isset($_FILES['uploadimage']) && $_FILES['uploadimage']['error'] === UPLOAD_
     $fileSize = $_FILES['uploadimage']['size'];
     
     // 验证文件类型和大小
-    if (!in_array($fileType, $config['upload']['allowed_types'])) {
+    if (!in_array($fileType, ['image/jpeg', 'image/png', 'image/gif'])) {
         die("错误：只允许上传JPG、PNG和GIF图片");
     }
     
-    if ($fileSize > $config['upload']['max_size']) {
+    if ($fileSize > 5000000) { // 5MB
         die("错误：文件大小超过限制");
     }
     
@@ -62,9 +66,12 @@ if (isset($_FILES['uploadimage']) && $_FILES['uploadimage']['error'] === UPLOAD_
     }
 }
 
-// 使用参数化查询插入数据
-$stmt = $conn->prepare("INSERT INTO blog_table (topic_title, topic_date, image_filename, topic_para) VALUES (?, ?, ?, ?)");
-$stmt->bind_param("ssss", $blogTitle, $blogDate, $filename, $blogPara);
+// 获取当前用户ID
+$userId = getCurrentUserId();
+
+// 使用参数化查询插入数据，包括用户ID
+$stmt = $conn->prepare("INSERT INTO blog_table (topic_title, topic_date, image_filename, topic_para, user_id) VALUES (?, ?, ?, ?, ?)");
+$stmt->bind_param("ssssi", $blogTitle, $blogDate, $filename, $blogPara, $userId);
 
 if (!$stmt->execute()) {
     die("保存博客失败: " . $stmt->error);
@@ -75,20 +82,27 @@ $conn->close();
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Post Saved</title>
+    <title>文章已保存</title>
     <link rel="stylesheet" href="styles/style.css">
     <style>
+        .top-bar {
+            background-color: #333;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+        }
+        
         .saved-container {
-            font-family: "Roboto", sans-serif;
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
+            font-family: Arial, sans-serif;
         }
-
+        
         .saved-container h2 {
             font-size: 24px;
             color: #333;
@@ -126,16 +140,16 @@ $conn->close();
 </head>
 <body>
     <div class="top-bar">
-        <span id="topBarTitle">Post Saved</span>
+        <span id="topBarTitle">文章已保存</span>
     </div>
     <div class="saved-container">
         <h2><?php echo htmlspecialchars($blogTitle); ?></h2>
         <p><small><?php echo htmlspecialchars($blogDate); ?></small></p>
         <?php if (!empty($filename) && $filename !== "NONE"): ?>
-            <img src="images/<?php echo htmlspecialchars($filename); ?>" alt="Post Image">
+            <img src="images/<?php echo htmlspecialchars($filename); ?>" alt="文章图片">
         <?php endif; ?>
         <p><?php echo nl2br(htmlspecialchars($blogPara)); ?></p>
-        <a href="index.php">Go to Home Page</a>
+        <a href="index.php">返回首页</a>
     </div>
 </body>
 </html>
