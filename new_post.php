@@ -1,3 +1,15 @@
+<?php
+// 加载配置
+$config = include 'config.php';
+include 'includes/auth.php';
+
+// 需要登录才能访问此页面
+requireLogin();
+
+// 获取当前用户信息
+$currentUser = getCurrentUser();
+?>
+
 <!DOCTYPE html>
 
 <html lang="en">

@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             localStorage.setItem('blogtitle', " . json_encode($title) . ");
             localStorage.setItem('blogpara', " . json_encode($content) . ");
             alert('" . $error . "'); 
-            window.location.href = 'index.html';
+            window.location.href = 'new_post.php';
         </script>";
         exit;
     }
@@ -104,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             localStorage.setItem('blogtitle', " . json_encode($title) . ");
             localStorage.setItem('blogpara', " . json_encode($content) . ");
             alert('发布失败，请重试。'); 
-            window.location.href = 'index.html';
+            window.location.href = 'new_post.php';
         </script>";
     }
     $stmt->close();

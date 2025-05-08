@@ -246,7 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="nav-bar">
         <div class="nav-links">
             <a href="index.php" class="nav-link">首页</a>
-            <a href="index.html" class="nav-link">发布文章</a>
+            <a href="new_post.php" class="nav-link">发布文章</a>
             <a href="profile.php" class="nav-link">我的资料</a>
             <?php if (isAdmin()): ?>
                 <a href="admin.php" class="nav-link">管理面板</a>

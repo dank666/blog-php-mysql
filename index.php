@@ -114,7 +114,7 @@ $currentUser = getCurrentUser();
         <div class="nav-links">
             <a href="index.php" class="nav-link">首页</a>
             <?php if (isLoggedIn()): ?>
-                <a href="index.html" class="nav-link">发布文章</a>
+                <a href="new_post.php" class="nav-link">发布文章</a>
                 <?php if (isAdmin()): ?>
                     <a href="admin.php" class="nav-link">管理面板</a>
                 <?php endif; ?>
@@ -186,7 +186,7 @@ $currentUser = getCurrentUser();
 
     <center>
         <?php if (isLoggedIn()): ?>
-            <a href="index.html" class="btn">撰写新文章</a>
+            <a href="new_post.php" class="btn">撰写新文章</a>
         <?php else: ?>
             <a href="login.php" class="btn">登录发布文章</a>
         <?php endif; ?>

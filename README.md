@@ -84,7 +84,7 @@
 浏览器访问：
 
 ```
-http://localhost/blog-php-mysql/login.php
+http://localhost/blog-php-mysql
 ```
 
 ---
