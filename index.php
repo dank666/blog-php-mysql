@@ -121,6 +121,15 @@ $currentUser = getCurrentUser();
             <?php endif; ?>
         </div>
         
+        <!-- 搜索框 -->
+        <div class="nav-search">
+            <form action="index.php" method="GET">
+                <input type="text" name="search" placeholder="搜索文章标题、内容或作者..." 
+                       value="<?php echo htmlspecialchars($search); ?>">
+                <button type="submit">搜索</button>
+            </form>
+        </div>
+        
         <div class="user-info">
             <?php if (isLoggedIn()): ?>
                 欢迎，<a href="profile.php" class="nav-link"><?php echo htmlspecialchars($currentUser['display_name']); ?></a>
@@ -136,19 +145,74 @@ $currentUser = getCurrentUser();
     <div class="all-posts-container">
         <?php
         $conn = getDbConnection($config);
-        
-        // 准备查询语句，连接用户表显示作者信息
-        $stmt = $conn->prepare("
+
+        // 获取搜索关键词
+        $search = isset($_GET['search']) ? trim($_GET['search']) : null;
+
+        // 获取当前页码
+        $currentPage = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+        if ($currentPage < 1) $currentPage = 1;
+
+        // 每页显示的文章数量
+        $postsPerPage = 5;
+
+        // 计算偏移量
+        $offset = ($currentPage - 1) * $postsPerPage;
+
+        // 修改查询语句，支持分页
+        $query = "
             SELECT b.id, b.topic_title, b.topic_date, b.image_filename, b.topic_para, b.user_id, 
                    u.display_name as author_name 
             FROM blog_table b 
             LEFT JOIN users u ON b.user_id = u.id 
-            ORDER BY b.id DESC
-        ");
+        ";
+
+        // 如果有搜索关键词，添加 WHERE 条件
+        if ($search) {
+            $query .= "WHERE b.topic_title LIKE ? OR b.topic_para LIKE ? OR u.display_name LIKE ? ";
+        }
+
+        $query .= "ORDER BY b.id DESC LIMIT ? OFFSET ?";
+
+        // 准备查询语句
+        $stmt = $conn->prepare($query);
+
+        // 如果有搜索关键词，绑定参数
+        if ($search) {
+            $searchTerm = '%' . $search . '%';
+            $stmt->bind_param('sssii', $searchTerm, $searchTerm, $searchTerm, $postsPerPage, $offset);
+        } else {
+            $stmt->bind_param('ii', $postsPerPage, $offset);
+        }
+
         $stmt->execute();
         $result = $stmt->get_result();
-        
+
+        // 获取文章总数，用于计算总页数
+        $countQuery = "
+            SELECT COUNT(*) as total 
+            FROM blog_table b 
+            LEFT JOIN users u ON b.user_id = u.id 
+        ";
+        if ($search) {
+            $countQuery .= "WHERE b.topic_title LIKE ? OR b.topic_para LIKE ? OR u.display_name LIKE ?";
+            $countStmt = $conn->prepare($countQuery);
+            $countStmt->bind_param('sss', $searchTerm, $searchTerm, $searchTerm);
+        } else {
+            $countStmt = $conn->prepare($countQuery);
+        }
+        $countStmt->execute();
+        $countResult = $countStmt->get_result();
+        $totalPosts = $countResult->fetch_assoc()['total'];
+        $totalPages = ceil($totalPosts / $postsPerPage);
+
         if ($result->num_rows > 0) {
+            if ($search) {
+                echo '<div style="margin-bottom: 20px; color: #666;">';
+                echo '搜索 "' . htmlspecialchars($search) . '" 的结果：共找到 ' . $result->num_rows . ' 篇文章';
+                echo '</div>';
+            }
+
             while ($row = $result->fetch_assoc()) {
                 echo '<div class="post-container">';
                 echo '<h2>' . htmlspecialchars($row["topic_title"]) . '</h2>';
@@ -176,10 +240,11 @@ $currentUser = getCurrentUser();
                 echo '</div>';
             }
         } else {
-            echo "<center><span>暂无博客文章</span></center>";
+            echo "<center><span>没有找到与 '" . htmlspecialchars($search) . "' 相关的文章</span></center>";
         }
         
         $stmt->close();
+        $countStmt->close();
         $conn->close();
         ?>
     </div>
@@ -189,6 +254,28 @@ $currentUser = getCurrentUser();
             <a href="new_post.php" class="btn">撰写新文章</a>
         <?php else: ?>
             <a href="login.php" class="btn">登录发布文章</a>
+        <?php endif; ?>
+    </center>
+
+    <center>
+        <?php if ($totalPages > 1): ?>
+        <div class="pagination">
+            <?php if ($currentPage > 1): ?>
+                <a href="?page=<?php echo $currentPage - 1; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?>">&laquo; 上一页</a>
+            <?php endif; ?>
+            
+            <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                <?php if ($i == $currentPage): ?>
+                    <span class="current-page"><?php echo $i; ?></span>
+                <?php else: ?>
+                    <a href="?page=<?php echo $i; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?>"><?php echo $i; ?></a>
+                <?php endif; ?>
+            <?php endfor; ?>
+            
+            <?php if ($currentPage < $totalPages): ?>
+                <a href="?page=<?php echo $currentPage + 1; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?>">下一页 &raquo;</a>
+            <?php endif; ?>
+        </div>
         <?php endif; ?>
     </center>
 

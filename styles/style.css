@@ -212,3 +212,56 @@ form
 {
     background-color: #218838;
 }
+
+.nav-search {
+    flex: 1;
+    max-width: 400px;
+    margin: 0 20px;
+}
+
+.nav-search form {
+    display: flex;
+}
+
+.nav-search input[type="text"] {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 20px 0 0 20px;
+    outline: none;
+}
+
+.nav-search button {
+    padding: 8px 15px;
+    background: #4CAF50;
+    color: white;
+    border: 1px solid #4CAF50;
+    border-radius: 0 20px 20px 0;
+    cursor: pointer;
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+    gap: 5px;
+}
+
+.pagination a, .pagination span {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    color: #007bff;
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.pagination span.current-page {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+.pagination a:hover {
+    background-color: #f1f1f1;
+}
