@@ -162,7 +162,8 @@ $currentUser = getCurrentUser();
         // 修改查询语句，支持分页
         $query = "
             SELECT b.id, b.topic_title, b.topic_date, b.image_filename, b.topic_para, b.user_id, 
-                   u.display_name as author_name 
+                   u.display_name as author_name,
+                   (SELECT COUNT(*) FROM likes l WHERE l.post_id = b.id) as likes_count
             FROM blog_table b 
             LEFT JOIN users u ON b.user_id = u.id 
         ";
@@ -215,7 +216,10 @@ $currentUser = getCurrentUser();
 
             while ($row = $result->fetch_assoc()) {
                 echo '<div class="post-container">';
-                echo '<h2>' . htmlspecialchars($row["topic_title"]) . '</h2>';
+                
+                // 将标题修改为链接
+                echo '<h2><a href="post.php?id=' . $row["id"] . '" style="text-decoration:none;color:#333;">' 
+                     . htmlspecialchars($row["topic_title"]) . '</a></h2>';
                 
                 // 显示作者和日期
                 echo '<div class="post-author">';
@@ -227,7 +231,24 @@ $currentUser = getCurrentUser();
                     echo '<img src="images/' . htmlspecialchars($row["image_filename"]) . '" alt="Post Image" style="max-width:100%;height:auto;">';
                 }
                 
-                echo '<p>' . nl2br(htmlspecialchars($row["topic_para"])) . '</p>';
+                // 显示文章摘要（前200个字符）
+                $content = $row["topic_para"];
+                $excerpt = mb_substr($content, 0, 200, 'UTF-8');
+                if (mb_strlen($content, 'UTF-8') > 200) {
+                    $excerpt .= '...';
+                }
+                echo '<p>' . nl2br(htmlspecialchars($excerpt)) . '</p>';
+                
+                // 显示点赞数
+                echo '<div class="post-meta">';
+                echo '<span class="like-count"><svg viewBox="0 0 24 24" style="width:16px;height:16px;vertical-align:middle;margin-right:3px;fill:#e53935;"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg> ';
+                echo $row["likes_count"] . ' 人点赞</span>';
+                echo '</div>';
+                
+                // 添加"阅读全文"链接
+                echo '<div style="margin-top: 15px;">';
+                echo '<a href="post.php?id=' . $row["id"] . '" class="btn">阅读全文</a>';
+                echo '</div>';
                 
                 // 仅显示给作者或管理员的编辑和删除按钮
                 if (isLoggedIn() && (isAdmin() || $row["user_id"] == getCurrentUserId())) {
@@ -240,7 +261,11 @@ $currentUser = getCurrentUser();
                 echo '</div>';
             }
         } else {
-            echo "<center><span>没有找到与 '" . htmlspecialchars($search) . "' 相关的文章</span></center>";
+            if ($search) {
+                echo "<center><span>没有找到与 '" . htmlspecialchars($search) . "' 相关的文章</span></center>";
+            } else {
+                echo "<center><span>目前还没有文章</span></center>";
+            }
         }
         
         $stmt->close();

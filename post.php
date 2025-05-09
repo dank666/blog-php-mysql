@@ -18,6 +18,9 @@ $post_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $post = null;
 $author = null;
 $error = null;
+$likes_count = 0;
+$user_liked = false;
+$current_user_id = isLoggedIn() ? getCurrentUserId() : 0;
 
 if ($post_id <= 0) {
     $error = "无效的文章ID";
@@ -54,6 +57,23 @@ if ($post_id <= 0) {
                     }
                     $authorStmt->close();
                 }
+            }
+
+            // 获取点赞数
+            $likes_stmt = $conn->prepare("SELECT COUNT(*) as count FROM likes WHERE post_id = ?");
+            $likes_stmt->bind_param("i", $post_id);
+            $likes_stmt->execute();
+            $likes_result = $likes_stmt->get_result();
+            $likes_count = $likes_result->fetch_assoc()['count'];
+            $likes_stmt->close();
+            
+            // 检查当前用户是否已点赞
+            if ($current_user_id > 0) {
+                $user_liked_stmt = $conn->prepare("SELECT id FROM likes WHERE post_id = ? AND user_id = ?");
+                $user_liked_stmt->bind_param("ii", $post_id, $current_user_id);
+                $user_liked_stmt->execute();
+                $user_liked = $user_liked_stmt->get_result()->num_rows > 0;
+                $user_liked_stmt->close();
             }
         }
         $stmt->close();
@@ -184,6 +204,67 @@ $conn->close();
             color: #0056b3;
             text-decoration: underline;
         }
+
+        /* 点赞按钮样式 */
+        .like-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background-color: #f0f0f0;
+            color: #333;
+            border: 1px solid #ddd;
+            padding: 8px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .like-button.liked {
+            background-color: #ffebee;
+            color: #e53935;
+            border-color: #ffcdd2;
+        }
+        
+        .like-button svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+        }
+
+        /* 修改按钮和操作区域的样式 */
+        .post-actions {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        /* 统一按钮样式 */
+        .btn {
+            display: inline-block;
+            padding: 8px 16px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        
+        .btn-danger {
+            background-color: #dc3545;
+        }
+        
+        .btn-danger:hover {
+            background-color: #c82333;
+        }
     </style>
 </head>
 <body>
@@ -239,16 +320,59 @@ $conn->close();
                     <?php echo nl2br(htmlspecialchars($post['topic_para'])); ?>
                 </div>
                 
-                <div class="action-links">
-                    <a href="index.php">返回首页</a>
+                <!-- 点赞和操作按钮 -->
+                <div class="post-actions">
+                    <?php if (isLoggedIn()): ?>
+                        <button id="likeButton" class="like-button <?php echo $user_liked ? 'liked' : ''; ?>" data-post-id="<?php echo $post_id; ?>">
+                            <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                            点赞 (<span id="likesCount"><?php echo $likes_count; ?></span>)
+                        </button>
+                    <?php else: ?>
+                        <span class="like-button">
+                            <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                            点赞 (<?php echo $likes_count; ?>)
+                        </span>
+                    <?php endif; ?>
                     
                     <?php if (isLoggedIn() && ($post['user_id'] == getCurrentUserId() || isAdmin())): ?>
-                        <a href="edit_post.php?id=<?php echo $post_id; ?>">编辑文章</a>
-                        <a href="delete_post.php?id=<?php echo $post_id; ?>" onclick="return confirm('确定要删除这篇文章吗?');">删除文章</a>
+                        <a href="edit_post.php?id=<?php echo $post_id; ?>" class="btn">编辑文章</a>
+                        <a href="delete_post.php?id=<?php echo $post_id; ?>" class="btn btn-danger" onclick="return confirm('确定要删除这篇文章吗?');">删除文章</a>
                     <?php endif; ?>
+                </div>
+                
+                <div class="action-links">
+                    <a href="index.php">返回首页</a>
                 </div>
             <?php endif; ?>
         </div>
     </div>
+
+    <script>
+    // 点赞功能
+    const likeButton = document.getElementById('likeButton');
+    if (likeButton) {
+        likeButton.addEventListener('click', function() {
+            const postId = this.getAttribute('data-post-id');
+            
+            fetch('toggle_like.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `post_id=${postId}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('likesCount').textContent = data.likes_count;
+                    likeButton.classList.toggle('liked', data.user_liked);
+                } else {
+                    alert('操作失败: ' + data.message);
+                }
+            })
+            .catch(error => console.error('点赞操作失败:', error));
+        });
+    }
+    </script>
 </body>
 </html>
