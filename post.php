@@ -265,6 +265,83 @@ $conn->close();
         .btn-danger:hover {
             background-color: #c82333;
         }
+
+        /* 评论区样式 */
+        .comments-section {
+            margin-top: 40px;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+
+        .comment-form {
+            margin-bottom: 30px;
+        }
+
+        .comment-form textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-height: 80px;
+            margin-bottom: 10px;
+            font-family: inherit;
+        }
+
+        .comments-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .comment-item {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+
+        .comment-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .comment-author {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .comment-date {
+            color: #888;
+            font-size: 0.9em;
+        }
+
+        .comment-content {
+            margin: 10px 0;
+            line-height: 1.4;
+        }
+
+        .comment-actions {
+            margin-top: 10px;
+            text-align: right;
+        }
+
+        .comment-delete {
+            color: #e53935;
+            background: none;
+            border: none;
+            padding: 0;
+            font: inherit;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .loading-comments {
+            color: #888;
+            text-align: center;
+            padding: 10px;
+        }
     </style>
 </head>
 <body>
@@ -340,6 +417,28 @@ $conn->close();
                     <?php endif; ?>
                 </div>
                 
+                <!-- 在 action-links div 前添加评论区 -->
+                <div class="comments-section">
+                    <h3>评论 (<span id="commentsCount">0</span>)</h3>
+                    
+                    <?php if (isLoggedIn()): ?>
+                        <div class="comment-form">
+                            <form id="commentForm">
+                                <input type="hidden" name="post_id" value="<?php echo $post_id; ?>">
+                                <textarea name="content" placeholder="写下您的评论..." required></textarea>
+                                <button type="submit" class="btn">发表评论</button>
+                            </form>
+                        </div>
+                    <?php else: ?>
+                        <p><a href="login.php">登录</a> 后才能发表评论</p>
+                    <?php endif; ?>
+                    
+                    <ul class="comments-list" id="commentsList">
+                        <!-- 评论将通过JavaScript加载 -->
+                        <li class="loading-comments">加载评论中...</li>
+                    </ul>
+                </div>
+
                 <div class="action-links">
                     <a href="index.php">返回首页</a>
                 </div>
@@ -373,6 +472,126 @@ $conn->close();
             .catch(error => console.error('点赞操作失败:', error));
         });
     }
+
+    // 加载评论
+    function loadComments() {
+        const commentsList = document.getElementById('commentsList');
+        
+        fetch('get_comments.php?post_id=<?php echo $post_id; ?>')
+            .then(response => response.json())
+            .then(data => {
+                commentsList.innerHTML = '';
+                
+                if (data.length === 0) {
+                    commentsList.innerHTML = '<li class="no-comments">暂无评论，快来发表第一条评论吧！</li>';
+                } else {
+                    data.forEach(comment => {
+                        const li = document.createElement('li');
+                        li.className = 'comment-item';
+                        li.dataset.id = comment.id;
+                        
+                        li.innerHTML = `
+                            <div class="comment-header">
+                                <span class="comment-author">${comment.username}</span>
+                                <span class="comment-date">${comment.created_at}</span>
+                            </div>
+                            <div class="comment-content">${comment.content}</div>
+                            ${(<?php echo $current_user_id; ?> === parseInt(comment.user_id) || <?php echo isAdmin() ? 'true' : 'false'; ?>) ? 
+                                `<div class="comment-actions">
+                                    <button class="comment-delete" data-id="${comment.id}">删除</button>
+                                </div>` : ''}
+                        `;
+                        
+                        commentsList.appendChild(li);
+                    });
+                    
+                    // 添加删除评论的事件监听
+                    document.querySelectorAll('.comment-delete').forEach(button => {
+                        button.addEventListener('click', function() {
+                            const commentId = this.getAttribute('data-id');
+                            if (confirm('确定要删除这条评论吗？')) {
+                                deleteComment(commentId);
+                            }
+                        });
+                    });
+                }
+                
+                document.getElementById('commentsCount').textContent = data.length;
+            })
+            .catch(error => {
+                console.error('加载评论失败:', error);
+                commentsList.innerHTML = '<li class="error-message">加载评论失败</li>';
+            });
+    }
+
+    // 删除评论
+    function deleteComment(commentId) {
+        fetch('delete_comment.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `id=${commentId}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const commentElement = document.querySelector(`.comment-item[data-id="${commentId}"]`);
+                if (commentElement) {
+                    commentElement.remove();
+                    const currentCount = parseInt(document.getElementById('commentsCount').textContent);
+                    document.getElementById('commentsCount').textContent = currentCount - 1;
+                    
+                    // 如果没有评论了，显示"暂无评论"提示
+                    if (currentCount - 1 === 0) {
+                        document.getElementById('commentsList').innerHTML = 
+                            '<li class="no-comments">暂无评论，快来发表第一条评论吧！</li>';
+                    }
+                }
+            } else {
+                alert('删除评论失败: ' + data.message);
+            }
+        })
+        .catch(error => console.error('删除评论失败:', error));
+    }
+
+    // 提交评论
+    document.getElementById('commentForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const submitButton = this.querySelector('button[type="submit"]');
+        submitButton.disabled = true;
+        submitButton.textContent = '发表中...';
+        
+        fetch('add_comment.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            submitButton.disabled = false;
+            submitButton.textContent = '发表评论';
+            
+            if (data.success) {
+                this.reset();
+                loadComments();
+            } else {
+                alert('发表评论失败: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('发表评论失败:', error);
+            submitButton.disabled = false;
+            submitButton.textContent = '发表评论';
+            alert('发表评论失败，请稍后再试');
+        });
+    });
+
+    // 页面加载时获取评论
+    document.addEventListener('DOMContentLoaded', function() {
+        loadComments();
+    });
     </script>
 </body>
 </html>
