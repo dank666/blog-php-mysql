@@ -342,6 +342,36 @@ $conn->close();
             text-align: center;
             padding: 10px;
         }
+
+        .follow-btn-small {
+            padding: 3px 8px;
+            border-radius: 15px;
+            border: 1px solid #007bff;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            outline: none;
+            margin-left: 5px;
+        }
+
+        .follow-btn-small.following {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .follow-btn-small.not-following {
+            background-color: white;
+            color: #007bff;
+        }
+
+        .follow-btn-small:hover.not-following {
+            background-color: #f0f8ff;
+        }
+
+        .follow-btn-small:hover.following {
+            background-color: #0056b3;
+        }
     </style>
 </head>
 <body>
@@ -351,6 +381,8 @@ $conn->close();
             <a href="index.php">首页</a>
             <?php if (isLoggedIn()): ?>
                 <a href="profile.php">我的资料</a>
+                <a href="following.php">我的关注</a>
+                <a href="followers.php">我的粉丝</a>
                 <?php if (isAdmin()): ?>
                     <a href="admin.php">管理面板</a>
                 <?php endif; ?>
@@ -378,7 +410,33 @@ $conn->close();
                     <?php if ($author): ?>
                         <img src="avatars/<?php echo htmlspecialchars($author['avatar'] ?? 'default.jpg'); ?>" alt="头像">
                         <div>
-                            <p>作者: <a href="profile.php?id=<?php echo $author['id']; ?>"><?php echo htmlspecialchars($author['username']); ?></a></p>
+                            <p>作者: <a href="profile.php?id=<?php echo $author['id']; ?>"><?php echo htmlspecialchars($author['username']); ?></a>
+                                <?php 
+                                // 如果当前用户已登录且不是作者本人，显示关注按钮
+                                if (isLoggedIn() && getCurrentUserId() != $author['id']): 
+                                    // 重新连接数据库检查关注状态
+                                    $conn = new mysqli(
+                                        $config['db']['host'],
+                                        $config['db']['username'],
+                                        $config['db']['password'],
+                                        $config['db']['database']
+                                    );
+                                    // 检查是否已关注
+                                    $current_user_id = getCurrentUserId();
+                                    $author_id = $author['id'];
+                                    $check_follow_stmt = $conn->prepare("SELECT id FROM followers WHERE follower_id = ? AND following_id = ?");
+                                    $check_follow_stmt->bind_param("ii", $current_user_id, $author_id);
+                                    $check_follow_stmt->execute();
+                                    $is_following = $check_follow_stmt->get_result()->num_rows > 0;
+                                    $check_follow_stmt->close();
+                                    $conn->close();
+                                ?>
+                                    <button id="authorFollowBtn" class="follow-btn-small <?php echo $is_following ? 'following' : 'not-following'; ?>" 
+                                            data-userid="<?php echo $author['id']; ?>">
+                                        <?php echo $is_following ? '已关注' : '关注'; ?>
+                                    </button>
+                                <?php endif; ?>
+                            </p>
                             <p>发布日期: <?php echo htmlspecialchars($post['topic_date']); ?></p>
                         </div>
                     <?php else: ?>
@@ -587,6 +645,38 @@ $conn->close();
             alert('发表评论失败，请稍后再试');
         });
     });
+
+    // 作者关注按钮功能
+    const authorFollowBtn = document.getElementById('authorFollowBtn');
+    if (authorFollowBtn) {
+        authorFollowBtn.addEventListener('click', function() {
+            const userId = this.getAttribute('data-userid');
+            
+            fetch('toggle_follow.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `user_id=${userId}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 更新按钮状态和文本
+                    if (data.is_following) {
+                        authorFollowBtn.className = 'follow-btn-small following';
+                        authorFollowBtn.textContent = '已关注';
+                    } else {
+                        authorFollowBtn.className = 'follow-btn-small not-following';
+                        authorFollowBtn.textContent = '关注';
+                    }
+                } else {
+                    alert('操作失败: ' + data.message);
+                }
+            })
+            .catch(error => console.error('关注操作失败:', error));
+        });
+    }
 
     // 页面加载时获取评论
     document.addEventListener('DOMContentLoaded', function() {
