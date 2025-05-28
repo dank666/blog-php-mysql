@@ -18,10 +18,16 @@
 - **文章编辑与删除**：用户可编辑和删除自己的文章，管理员可管理所有文章  
 - **图片上传**：支持 JPG、PNG、GIF 格式，大小限制为 2MB  
 
+### 评论与互动
+- **评论功能**：用户可对文章发表评论  
+- **点赞功能**：支持文章点赞与取消点赞  
+- **关注功能**：用户可关注其他用户，并查看关注和粉丝列表  
+
 ### 管理功能
 - **管理面板**：管理员专用界面，可管理所有用户和文章  
-- **用户管理**：管理员可设置或取消其他用户的管理权限  
-- **首管理员保护**：系统确保首个管理员权限不能被其他管理员修改  
+- **用户管理**：管理员可设置或取消其他用户的管理员权限  
+- **文章管理**：管理员可删除任意文章  
+- **统计分析**：查看用户增长、文章发布趋势、热门文章和活跃用户  
 
 ### 用户体验
 - **输入保留**：上传图片过大等错误情况下，用户输入的内容会被保留  
@@ -34,8 +40,23 @@
 ## 项目结构
 
 ### 数据库结构
-- `users` 表  
-- `blog_table` 表  
+- `users` 表：存储用户信息  
+- `blog_table` 表：存储文章信息  
+- `comments` 表：存储评论信息  
+- `likes` 表：存储点赞记录  
+- `followers` 表：存储用户关注关系  
+
+### 文件结构
+- `index.php`：首页，展示文章列表  
+- `post.php`：文章详情页，支持评论和点赞  
+- `new_post.php`：发布新文章页面  
+- `edit_post.php`：编辑文章页面  
+- `profile.php`：用户个人资料页面  
+- `admin.php`：管理员面板  
+- `styles/`：存放 CSS 样式文件  
+- `scripts/`：存放 JavaScript 文件  
+- `images/`：存放文章图片  
+- `avatars/`：存放用户头像  
 
 ---
 
@@ -44,55 +65,45 @@
 ### 安装依赖
 确保已安装 PHP、MySQL 和 Apache/Nginx 服务器。
 
+### 配置数据库
+1. 创建数据库并导入项目提供的 SQL 文件  
+2. 在项目根目录创建 `config.php` 文件，设置数据库连接信息：
+
+   ```php
+   <?php
+   return [
+       'db' => [
+           'host' => 'localhost',
+           'username' => 'your_db_user',
+           'password' => 'your_db_password',
+           'database' => 'your_db_name',
+       ],
+   ];
+
 ---
 
 ## 部署项目
 
-1. 将本项目文件夹复制到 `html` 目录下（如：`/var/www/html/`）
+1. 将项目文件夹复制到服务器的 `html` 目录下（如：`/var/www/html/`）：
+   ```bash
+   cp -r blog-php-mysql /var/www/html/
+   ```
 2. 设置权限：
-
    ```bash
    chmod -R 755 blog-php-mysql
    chown -R www-data:www-data blog-php-mysql
    ```
-
-3. 创建并配置数据库
-4. 创建配置文件：
-
-   在项目根目录创建 `config.php` 文件，设置数据库连接信息：
-
-   ```php
-   <?php
-   $host = "localhost";
-   $user = "your_db_user";
-   $pass = "your_db_password";
-   $dbname = "your_db_name";
-   ?>
-   ```
-
----
-
-## 启动服务
-
-### 创建目录结构
-确保以下目录存在并具备可写权限：
-
-- `images/`
-- `avatars/`
-
-### 访问系统
-浏览器访问：
-
-```
-http://localhost/blog-php-mysql
-```
+3. 确保以下目录存在并具备可写权限：
+   - `images/`
+   - `avatars/`
+4. 浏览器访问：`http://localhost/blog-php-mysql`
 
 ---
 
 ## 使用指南
 
 ### 注册与登录
-1. 访问登录页面：http://localhost/blog-php-mysql/login.php  
+1. 访问登录页面：`http://localhost/blog-php-mysql/login.php`  
 2. 首次使用请点击“注册”，填写用户名、邮箱和密码  
 3. 注册后自动登录，或使用已有账户登录系统  
 
@@ -121,28 +132,26 @@ http://localhost/blog-php-mysql
 ## 文件上传限制
 
 | 类型         | 格式               | 最大大小 |
-|--------------|--------------------|-----------|
-| 头像上传     | JPG、PNG、GIF      | 2MB       |
-| 文章图片上传 | JPG、PNG、GIF      | 2MB       |
-
-*上传失败时系统会提示错误并保留输入内容。*
+|--------------|--------------------|----------|
+| 头像上传     | JPG、PNG、GIF      | 2MB      |
+| 文章图片上传 | JPG、PNG、GIF      | 2MB      |
 
 ---
 
 ## 安全特性
 
-- 密码使用安全哈希算法存储（如 `password_hash()`）
-- 表单提交使用 CSRF 令牌保护
-- 输入数据经过过滤和验证，防止 SQL 注入
-- 首个管理员权限不能被其他管理员修改
+- 密码使用安全哈希算法存储（如 `password_hash()`）  
+- 表单提交使用 CSRF 令牌保护  
+- 输入数据经过过滤和验证，防止 SQL 注入  
+- 首个管理员权限不能被其他管理员修改  
 
 ---
 
 ## 扩展与自定义
 
-- 可修改 `config.php` 调整数据库连接设置
-- 可修改 `style.css` 自定义界面样式
-- 可调整 `php.ini` 中的 `upload_max_filesize` 和 `post_max_size` 改变上传限制
+- 可修改 `config.php` 调整数据库连接设置  
+- 可修改 `styles/` 文件夹中的 CSS 自定义界面样式  
+- 可调整 `php.ini` 中的 `upload_max_filesize` 和 `post_max_size` 改变上传限制  
 
 ---
 
@@ -150,7 +159,7 @@ http://localhost/blog-php-mysql
 
 项目包含 `deploy.sh` 脚本，支持自动部署和更新：
 
-- 自动备份 `images` 和 `avatars` 文件夹，升级时不会丢失已上传图片。
+- 自动备份 `images` 和 `avatars` 文件夹，升级时不会丢失已上传图片  
 
 ---
 
@@ -162,3 +171,9 @@ http://localhost/blog-php-mysql
 | 数据库连接错误   | 确认 `config.php` 中的数据库连接信息正确                                 |
 | 页面样式异常     | 检查 CSS 和 JavaScript 是否正确引入                                      |
 | 日期显示问题     | 检查 JavaScript 日期设置代码                                              |
+
+---
+
+## 许可证
+
+本项目基于 MIT 许可证开源，欢迎自由使用和修改。
