@@ -1,4 +1,9 @@
 <?php
+// 添加错误报告以帮助调试
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 include 'includes/auth.php';
 $config = include 'config.php';
 
@@ -21,6 +26,7 @@ $error = null;
 $likes_count = 0;
 $user_liked = false;
 $current_user_id = isLoggedIn() ? getCurrentUserId() : 0;
+$views_count = 0; // 初始化浏览量变量
 
 if ($post_id <= 0) {
     $error = "无效的文章ID";
@@ -77,6 +83,53 @@ if ($post_id <= 0) {
             }
         }
         $stmt->close();
+    }
+}
+
+// 记录文章访问量
+if (!$error && isset($post['id'])) {
+    $post_id = $post['id'];
+    
+    // 未登录的用户仍然用IP记录
+    $viewer_id = isLoggedIn() ? getCurrentUserId() : 'ip_' . $_SERVER['REMOTE_ADDR'];
+    
+    // 创建或验证视图表
+    $conn->query("
+        CREATE TABLE IF NOT EXISTS blog_views (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            post_id INT NOT NULL,
+            viewer_id VARCHAR(64) NOT NULL,
+            view_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            view_date_only DATE DEFAULT (CURRENT_DATE),
+            UNIQUE KEY (post_id, viewer_id, view_date_only),
+            FOREIGN KEY (post_id) REFERENCES blog_table(id) ON DELETE CASCADE
+        )
+    ");
+    
+    // 尝试插入浏览记录
+    try {
+        $view_stmt = $conn->prepare("
+            INSERT IGNORE INTO blog_views (post_id, viewer_id, view_date_only) 
+            VALUES (?, ?, CURRENT_DATE())
+        ");
+        $view_stmt->bind_param("is", $post_id, $viewer_id);
+        $view_stmt->execute();
+        $view_stmt->close();
+    } catch (Exception $e) {
+        error_log("浏览量记录失败: " . $e->getMessage());
+    }
+    
+    // 获取文章浏览量
+    try {
+        $views_stmt = $conn->prepare("SELECT COUNT(*) as count FROM blog_views WHERE post_id = ?");
+        $views_stmt->bind_param("i", $post_id);
+        $views_stmt->execute();
+        $views_result = $views_stmt->get_result();
+        $views_count = $views_result->fetch_assoc()['count'];
+        $views_stmt->close();
+    } catch (Exception $e) {
+        error_log("浏览量获取失败: " . $e->getMessage());
+        $views_count = 0;
     }
 }
 
@@ -415,7 +468,7 @@ $conn->close();
                                 // 如果当前用户已登录且不是作者本人，显示关注按钮
                                 if (isLoggedIn() && getCurrentUserId() != $author['id']): 
                                     // 重新连接数据库检查关注状态
-                                    $conn = new mysqli(
+                                    $conn_follow = new mysqli(
                                         $config['db']['host'],
                                         $config['db']['username'],
                                         $config['db']['password'],
@@ -424,12 +477,12 @@ $conn->close();
                                     // 检查是否已关注
                                     $current_user_id = getCurrentUserId();
                                     $author_id = $author['id'];
-                                    $check_follow_stmt = $conn->prepare("SELECT id FROM followers WHERE follower_id = ? AND following_id = ?");
+                                    $check_follow_stmt = $conn_follow->prepare("SELECT id FROM followers WHERE follower_id = ? AND following_id = ?");
                                     $check_follow_stmt->bind_param("ii", $current_user_id, $author_id);
                                     $check_follow_stmt->execute();
                                     $is_following = $check_follow_stmt->get_result()->num_rows > 0;
                                     $check_follow_stmt->close();
-                                    $conn->close();
+                                    $conn_follow->close();
                                 ?>
                                     <button id="authorFollowBtn" class="follow-btn-small <?php echo $is_following ? 'following' : 'not-following'; ?>" 
                                             data-userid="<?php echo $author['id']; ?>">
@@ -438,11 +491,13 @@ $conn->close();
                                 <?php endif; ?>
                             </p>
                             <p>发布日期: <?php echo htmlspecialchars($post['topic_date']); ?></p>
+                            <p>浏览量: <?php echo $views_count; ?></p>
                         </div>
                     <?php else: ?>
                         <div>
                             <p>作者: [已删除]</p>
                             <p>发布日期: <?php echo htmlspecialchars($post['topic_date']); ?></p>
+                            <p>浏览量: <?php echo $views_count; ?></p>
                         </div>
                     <?php endif; ?>
                 </div>
