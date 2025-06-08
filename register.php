@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>注册 - 博客系统</title>
+    <title>注册 - 智域博客</title>
     <link rel="stylesheet" href="styles/style.css">
     <style>
         .form-container {
@@ -129,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 <body>
     <div class="top-bar">
-        <span id="topBarTitle">博客系统 | 注册</span>
+        <span id="topBarTitle">智域博客 | 注册</span>
     </div>
     
     <div class="form-container">

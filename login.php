@@ -113,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 <body>
     <div class="top-bar">
-        <span id="topBarTitle">博客系统 | 登录</span>
+        <span id="topBarTitle">智域博客 | 登录</span>
     </div>
     
     <div class="form-container">
