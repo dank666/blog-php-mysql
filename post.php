@@ -408,6 +408,7 @@ $conn->close();
             min-height: 80px;
             margin-bottom: 10px;
             font-family: inherit;
+            resize: none; /* 禁止调整大小 */
         }
 
         .comments-list {
