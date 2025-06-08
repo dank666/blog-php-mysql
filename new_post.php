@@ -152,9 +152,20 @@ $currentUser = getCurrentUser();
         <br><br>
         
         <input type="file" name="uploadimage">
-        
+
         <br><br>
       
+        <!-- 添加位置选项 -->
+        <div class="location-option">
+          <label for="enableLocation">
+            <input type="checkbox" id="enableLocation" name="enable_location"> 显示我的当前位置
+          </label>
+          <div id="locationStatus" style="display:none; margin-top: 5px; font-size: 14px; color: #666;"></div>
+          <input type="hidden" id="locationData" name="location_data">
+        </div>
+
+        <br>
+
         <textarea id="blogPara" name="blogpara" cols="75" rows="10" type="text" placeholder="Blog Paragraph..." autocomplete="off"></textarea>
 
         <br><br>
@@ -439,6 +450,84 @@ $currentUser = getCurrentUser();
         // 更新显示
         renderSelectedTags();
       }
+      
+      // 现有JavaScript代码...
+      
+      // 添加位置功能
+      document.addEventListener('DOMContentLoaded', function() {
+        const enableLocationCheckbox = document.getElementById('enableLocation');
+        const locationStatusDiv = document.getElementById('locationStatus');
+        const locationDataInput = document.getElementById('locationData');
+        
+        enableLocationCheckbox.addEventListener('change', function() {
+          if (this.checked) {
+            locationStatusDiv.style.display = 'block';
+            locationStatusDiv.textContent = '正在获取位置信息...';
+            
+            // 检查浏览器是否支持地理位置API
+            if (navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition(
+                // 成功获取位置
+                function(position) {
+                  const latitude = position.coords.latitude;
+                  const longitude = position.coords.longitude;
+                  
+                  // 调用反向地理编码API获取地址信息
+                  fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`)
+                    .then(response => response.json())
+                    .then(data => {
+                      // 存储位置信息
+                      const locationInfo = {
+                        latitude: latitude,
+                        longitude: longitude,
+                        address: data.display_name || '未知地点'
+                      };
+                      
+                      locationDataInput.value = JSON.stringify(locationInfo);
+                      locationStatusDiv.textContent = `位置: ${locationInfo.address}`;
+                    })
+                    .catch(error => {
+                      console.error('获取地址信息失败:', error);
+                      const locationInfo = {
+                        latitude: latitude,
+                        longitude: longitude,
+                        address: '位置已获取，但无法解析详细地址'
+                      };
+                      locationDataInput.value = JSON.stringify(locationInfo);
+                      locationStatusDiv.textContent = `位置已获取 (${latitude.toFixed(6)}, ${longitude.toFixed(6)})`;
+                    });
+                },
+                // 获取位置失败
+                function(error) {
+                  let errorMessage = '无法获取位置信息: ';
+                  switch(error.code) {
+                    case error.PERMISSION_DENIED:
+                      errorMessage += '用户拒绝了位置请求。';
+                      break;
+                    case error.POSITION_UNAVAILABLE:
+                      errorMessage += '位置信息不可用。';
+                      break;
+                    case error.TIMEOUT:
+                      errorMessage += '获取位置请求超时。';
+                      break;
+                    case error.UNKNOWN_ERROR:
+                      errorMessage += '发生未知错误。';
+                      break;
+                  }
+                  locationStatusDiv.textContent = errorMessage;
+                  enableLocationCheckbox.checked = false;
+                }
+              );
+            } else {
+              locationStatusDiv.textContent = '您的浏览器不支持地理位置功能。';
+              enableLocationCheckbox.checked = false;
+            }
+          } else {
+            locationStatusDiv.style.display = 'none';
+            locationDataInput.value = '';
+          }
+        });
+      });
     </script>
   </body>
   

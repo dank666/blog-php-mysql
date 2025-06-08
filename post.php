@@ -234,16 +234,44 @@ $conn->close();
             border: 2px solid #f0f0f0;
         }
         
+        /* 修改正文样式，使其更加突出 */
         .post-content {
             line-height: 1.8;
             font-size: 16px;
             color: #444;
+            background-color: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 25px;
+            margin: 20px 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
         
-        .post-image {
-            max-width: 100%;
-            margin: 20px 0;
-            border-radius: 5px;
+        /* 调整位置信息和发布日期样式 */
+        .post-date, .post-location {
+            margin-bottom: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .post-location {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .location-icon {
+            margin-right: 5px;
+            font-style: normal;
+        }
+        
+        /* 调整标签区域样式 */
+        .post-tags {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px dashed #e0e0e0;
+            font-size: 14px;
+            color: #666;
         }
         
         .error-message {
@@ -532,13 +560,11 @@ $conn->close();
                                     </button>
                                 <?php endif; ?>
                             </p>
-                            <p>发布日期: <?php echo htmlspecialchars($post['topic_date']); ?></p>
                             <p>浏览量: <?php echo $views_count; ?></p>
                         </div>
                     <?php else: ?>
                         <div>
                             <p>作者: [已删除]</p>
-                            <p>发布日期: <?php echo htmlspecialchars($post['topic_date']); ?></p>
                             <p>浏览量: <?php echo $views_count; ?></p>
                         </div>
                     <?php endif; ?>
@@ -551,6 +577,17 @@ $conn->close();
                     </div>
                 <?php endif; ?>
                 
+                <!-- 在显示文章内容的地方添加位置信息 -->
+                <div class="post-date">发布于: <?php echo htmlspecialchars($post['topic_date']); ?></div>
+
+                <?php if (!empty($post['location'])): ?>
+                <div class="post-location">
+                    <i class="location-icon">📍</i> 
+                    <span><?php echo htmlspecialchars($post['location']); ?></span>
+                </div>
+                <?php endif; ?>
+
+                <h3>文章内容</h3>
                 <div class="post-content">
                     <?php echo nl2br(htmlspecialchars($post['topic_para'])); ?>
                 </div>

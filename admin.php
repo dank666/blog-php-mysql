@@ -155,8 +155,8 @@ $newPostsCount = $stmt->get_result()->fetch_assoc()['count'];
 $stmt->close();
 
 // 分页设置
-$usersPerPage = 10; // 每页显示的用户数
-$postsPerPage = 10; // 每页显示的文章数
+$usersPerPage = 30; // 每页显示的用户数
+$postsPerPage = 30; // 每页显示的文章数
 $userPage = isset($_GET['user_page']) ? (int)$_GET['user_page'] : 1;
 $postPage = isset($_GET['post_page']) ? (int)$_GET['post_page'] : 1;
 

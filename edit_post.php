@@ -53,116 +53,141 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = "标题、日期和内容不能为空。";
     }
 
-    // 检查图片上传
-    if (isset($_FILES['image']) && $_FILES['image']['error'] !== UPLOAD_ERR_NO_FILE) {
-        if ($_FILES['image']['error'] === UPLOAD_ERR_INI_SIZE) {
-            $error = "图片太大，请选择小于 " . ini_get('upload_max_filesize') . " 的图片。";
-        } elseif ($_FILES['image']['error'] !== UPLOAD_ERR_OK) {
-            $error = "图片上传失败，请重试。";
-        } else {
-            // 验证图片大小（2MB限制）
-            $maxFileSize = 2 * 1024 * 1024; // 2MB
-            if ($_FILES['image']['size'] > $maxFileSize) {
-                $error = "图片太大，请选择小于 2MB 的图片。";
-            }
-
-            // 验证图片格式
-            $allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
-            if (!in_array($_FILES['image']['type'], $allowedTypes)) {
-                $error = "图片格式不支持，仅支持 JPG、PNG 和 GIF 格式。";
-            }
-        }
-    }
-
     // 如果有错误，返回错误提示
     if (!empty($error)) {
         echo "<script>alert('$error'); window.history.back();</script>";
         exit;
     }
 
-    // 如果没有错误，处理图片上传
+    // 处理图片上传
     $imageFilename = null;
     if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
-        $uploadDir = 'images/';
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0755, true);
+        $target_dir = "images/";
+        
+        // 确保目录存在
+        if (!is_dir($target_dir)) {
+            mkdir($target_dir, 0755, true);
         }
-
+        
+        // 生成唯一文件名
         $extension = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
         $imageFilename = uniqid('post_') . '.' . $extension;
-
-        if (!move_uploaded_file($_FILES['image']['tmp_name'], $uploadDir . $imageFilename)) {
+        $target_file = $target_dir . $imageFilename;
+        
+        // 移动上传的文件
+        if (!move_uploaded_file($_FILES['image']['tmp_name'], $target_file)) {
             echo "<script>alert('图片上传失败，请重试。'); window.history.back();</script>";
             exit;
         }
     }
 
-    // 更新帖子到数据库
-    $stmt = $conn->prepare("UPDATE blog_table SET topic_title = ?, topic_date = ?, topic_para = ?, image_filename = IFNULL(?, image_filename) WHERE id = ?");
-    $stmt->bind_param("ssssi", $title, $date, $content, $imageFilename, $postId);
-    
-    // 开启事务
+    // 处理位置数据
+    $location = null;
+    if (!empty($_POST['location_data'])) {
+        $locationInfo = json_decode($_POST['location_data'], true);
+        if ($locationInfo && isset($locationInfo['address'])) {
+            $location = $locationInfo['address'];
+            if (strlen($location) > 255) {
+                $location = substr($location, 0, 252) . '...';
+            }
+        }
+    }
+
+    // 使用事务确保数据一致性
     $conn->begin_transaction();
     
     try {
         // 更新文章内容
+        if ($imageFilename) {
+            // 如果有新图片
+            $stmt = $conn->prepare("UPDATE blog_table SET topic_title = ?, topic_date = ?, topic_para = ?, image_filename = ?, location = ? WHERE id = ?");
+            $stmt->bind_param("sssssi", $title, $date, $content, $imageFilename, $location, $postId);
+        } else {
+            // 如果没有新图片
+            $stmt = $conn->prepare("UPDATE blog_table SET topic_title = ?, topic_date = ?, topic_para = ?, location = ? WHERE id = ?");
+            $stmt->bind_param("ssssi", $title, $date, $content, $location, $postId);
+        }
         $stmt->execute();
+        $stmt->close();
         
-        // 删除旧的标签关联
-        $deleteStmt = $conn->prepare("DELETE FROM post_tags WHERE post_id = ?");
-        $deleteStmt->bind_param("i", $postId);
-        $deleteStmt->execute();
-        $deleteStmt->close();
+        // 删除旧的标签关联 - 确保此语句执行成功
+        $stmt = $conn->prepare("DELETE FROM post_tags WHERE post_id = ?");
+        $stmt->bind_param("i", $postId);
+        $result = $stmt->execute();
+        if (!$result) {
+            throw new Exception("删除旧标签失败: " . $conn->error);
+        }
+        $stmt->close();
+        
+        // 对标签数组进行去重
+        $tags = isset($tags) ? array_map('intval', $tags) : [];
+        $tags = array_unique($tags);
         
         // 处理自定义标签
+        $processedCustomTags = []; // 跟踪已处理的自定义标签
+        
         foreach ($customTags as $tagName) {
-            if (!empty($tagName)) {
-                // 检查标签是否已存在
-                $tagStmt = $conn->prepare("SELECT id FROM tags WHERE name = ?");
-                $tagStmt->bind_param("s", $tagName);
-                $tagStmt->execute();
-                $tagResult = $tagStmt->get_result();
+            if (!empty($tagName) && !in_array(strtolower($tagName), $processedCustomTags)) {
+                // 记录已处理的标签（不区分大小写）
+                $processedCustomTags[] = strtolower($tagName);
                 
-                if ($tagResult->num_rows > 0) {
-                    $tagId = $tagResult->fetch_assoc()['id'];
+                // 检查标签是否已存在
+                $stmt = $conn->prepare("SELECT id FROM tags WHERE LOWER(name) = LOWER(?)");
+                $stmt->bind_param("s", $tagName);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                if ($result->num_rows > 0) {
+                    $tagId = $result->fetch_assoc()['id'];
+                    // 只有当这个ID不在标签数组中时才添加
+                    if (!in_array($tagId, $tags)) {
+                        $tags[] = $tagId;
+                    }
                 } else {
                     // 插入新标签
-                    $newTagStmt = $conn->prepare("INSERT INTO tags (name) VALUES (?)");
-                    $newTagStmt->bind_param("s", $tagName);
-                    $newTagStmt->execute();
+                    $stmt->close();
+                    $stmt = $conn->prepare("INSERT INTO tags (name) VALUES (?)");
+                    $stmt->bind_param("s", $tagName);
+                    $stmt->execute();
                     $tagId = $conn->insert_id;
-                    $newTagStmt->close();
+                    $tags[] = $tagId;
                 }
-                
-                $tagStmt->close();
-                $tags[] = $tagId; // 将新标签的ID添加到标签列表
+                $stmt->close();
             }
         }
         
+        // 再次确保所有标签都是唯一的
+        $tags = array_unique($tags);
+        
         // 插入文章标签关系
         if (!empty($tags)) {
-            $tagRelStmt = $conn->prepare("INSERT INTO post_tags (post_id, tag_id) VALUES (?, ?)");
+            // 使用INSERT IGNORE来忽略重复键错误
+            $stmt = $conn->prepare("INSERT IGNORE INTO post_tags (post_id, tag_id) VALUES (?, ?)");
+            
             foreach ($tags as $tagId) {
-                $tagRelStmt->bind_param("ii", $postId, $tagId);
-                $tagRelStmt->execute();
+                $stmt->bind_param("ii", $postId, $tagId);
+                $stmt->execute();
             }
-            $tagRelStmt->close();
+            $stmt->close();
         }
         
         // 提交事务
         $conn->commit();
-        echo "<script>alert('文章更新成功！'); window.location.href = 'index.php';</script>";
+        
+        // 重定向到文章页面
+        header("Location: post.php?id=$postId");
+        exit;
     } catch (Exception $e) {
         // 回滚事务
         $conn->rollback();
-        echo "<script>alert('文章更新失败，请重试。'); window.history.back();</script>";
+        
+        // 显示错误信息
+        echo "<script>alert('更新文章失败: " . $e->getMessage() . "'); window.history.back();</script>";
+        exit;
     }
-    
-    $stmt->close();
 }
 
 // 获取文章数据
-$stmt = $conn->prepare("SELECT topic_title, topic_date, image_filename, topic_para FROM blog_table WHERE id = ?");
+$stmt = $conn->prepare("SELECT topic_title, topic_date, image_filename, topic_para, location FROM blog_table WHERE id = ?");
 $stmt->bind_param("i", $id);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -320,9 +345,26 @@ $stmt->close();
             
             <input type="file" name="image">
             <p><small>选择新图片以替换当前图片，或留空保持当前图片不变</small></p>
-            
+
             <br>
           
+            <!-- 添加位置选项 -->
+            <div class="location-option">
+              <label for="enableLocation">
+                <input type="checkbox" id="enableLocation" name="enable_location" <?php echo !empty($post['location']) ? 'checked' : ''; ?>> 
+                显示我的当前位置
+              </label>
+              <div id="locationStatus" style="display:<?php echo !empty($post['location']) ? 'block' : 'none'; ?>; margin-top: 5px; font-size: 14px; color: #666;">
+                <?php if (!empty($post['location'])): ?>
+                  当前位置: <?php echo htmlspecialchars($post['location']); ?>
+                <?php endif; ?>
+              </div>
+              <input type="hidden" id="locationData" name="location_data" value="<?php echo !empty($post['location']) ? htmlspecialchars(json_encode(['address' => $post['location']])) : ''; ?>">
+              <button type="button" id="updateLocationBtn" style="display:<?php echo !empty($post['location']) ? 'inline-block' : 'none'; ?>; margin-top: 5px;">更新位置</button>
+            </div>
+
+            <br>
+
             <textarea id="blogPara" name="content" cols="75" rows="10" placeholder="博客内容..."><?php echo htmlspecialchars($post['topic_para']); ?></textarea>
 
             <br><br>
@@ -414,8 +456,11 @@ $stmt->close();
         let customTagsArray = []; // 存储自定义标签
         
         // 初始化已选标签
+        selectedTagsMap.clear(); // 确保Map为空
         <?php foreach ($existingTags as $id => $name): ?>
-            selectedTagsMap.set('<?php echo $id; ?>', '<?php echo addslashes($name); ?>');
+            if (!selectedTagsMap.has('<?php echo $id; ?>')) {
+                selectedTagsMap.set('<?php echo $id; ?>', '<?php echo addslashes($name); ?>');
+            }
         <?php endforeach; ?>
         
         // 标签模态框功能
@@ -434,14 +479,21 @@ $stmt->close();
             // 清除之前的选择
             selectedTagsMap.clear();
             
-            // 添加新选择的标签
+            // 添加新选择的标签，确保不重复
+            const processedIds = new Set();
+            
             checkboxes.forEach(checkbox => {
                 const tagId = checkbox.value;
-                const tagName = document.querySelector(`label[for="tag${tagId}"]`).textContent;
-                selectedTagsMap.set(tagId, tagName);
                 
-                // 同步复选框状态
-                syncCheckboxState(tagId, true);
+                // 确保该ID还没有被添加
+                if (!processedIds.has(tagId)) {
+                    processedIds.add(tagId);
+                    const tagName = document.querySelector(`label[for="tag${tagId}"]`).textContent;
+                    selectedTagsMap.set(tagId, tagName);
+                    
+                    // 同步复选框状态
+                    syncCheckboxState(tagId, true);
+                }
             });
             
             // 更新显示
@@ -455,9 +507,29 @@ $stmt->close();
             
             if (customTagsInput) {
                 // 分割并清理自定义标签
-                customTagsArray = customTagsInput.split(',')
+                const tagArray = customTagsInput.split(',')
                     .map(tag => tag.trim())
                     .filter(tag => tag.length > 0);
+                
+                // 检查重复标签（包括已有标签和自定义标签）
+                const existingTagNames = Array.from(selectedTagsMap.values()).map(name => name.toLowerCase());
+                const uniqueCustomTags = [];
+                
+                // 只添加不重复的标签
+                for (const tag of tagArray) {
+                    const lowerTag = tag.toLowerCase();
+                    
+                    // 检查是否与已有标签重复
+                    if (!existingTagNames.includes(lowerTag)) {
+                        // 检查是否与已添加的自定义标签重复
+                        if (!uniqueCustomTags.some(t => t.toLowerCase() === lowerTag)) {
+                            uniqueCustomTags.push(tag);
+                        }
+                    }
+                }
+                
+                // 替换自定义标签数组
+                customTagsArray = uniqueCustomTags;
             }
             
             // 渲染所有选中的标签
@@ -472,35 +544,50 @@ $stmt->close();
             const container = document.getElementById('selectedTags');
             container.innerHTML = ''; // 清空容器
             
+            // 使用Set跟踪已添加的标签ID和自定义标签，避免重复
+            const addedTagIds = new Set();
+            const addedCustomTags = new Set();
+            
             // 添加已有标签
             selectedTagsMap.forEach((tagName, tagId) => {
-                const tagElement = createTagElement(tagName, 'existing', tagId);
-                container.appendChild(tagElement);
-                
-                // 确保有一个隐藏的input用于表单提交
-                const hiddenInput = document.createElement('input');
-                hiddenInput.type = 'hidden';
-                hiddenInput.name = 'tags[]';
-                hiddenInput.value = tagId;
-                container.appendChild(hiddenInput);
+                // 确保这个ID还没有被添加过
+                if (!addedTagIds.has(tagId)) {
+                    addedTagIds.add(tagId);
+                    
+                    const tagElement = createTagElement(tagName, 'existing', tagId);
+                    container.appendChild(tagElement);
+                    
+                    // 确保有一个隐藏的input用于表单提交
+                    const hiddenInput = document.createElement('input');
+                    hiddenInput.type = 'hidden';
+                    hiddenInput.name = 'tags[]';
+                    hiddenInput.value = tagId;
+                    container.appendChild(hiddenInput);
+                }
             });
             
             // 添加自定义标签
             customTagsArray.forEach(tagName => {
-                const tagElement = createTagElement(tagName, 'custom');
-                container.appendChild(tagElement);
-                
-                // 确保有一个隐藏的input用于表单提交
-                const hiddenInput = document.createElement('input');
-                hiddenInput.type = 'hidden';
-                hiddenInput.name = 'custom_tags_array[]';
-                hiddenInput.value = tagName;
-                container.appendChild(hiddenInput);
+                // 确保这个标签名还没有被添加过（不区分大小写）
+                const lowerTagName = tagName.toLowerCase();
+                if (!addedCustomTags.has(lowerTagName)) {
+                    addedCustomTags.add(lowerTagName);
+                    
+                    const tagElement = createTagElement(tagName, 'custom');
+                    container.appendChild(tagElement);
+                    
+                    // 确保有一个隐藏的input用于表单提交
+                    const hiddenInput = document.createElement('input');
+                    hiddenInput.type = 'hidden';
+                    hiddenInput.name = 'custom_tags_array[]';
+                    hiddenInput.value = tagName;
+                    container.appendChild(hiddenInput);
+                }
             });
             
             // 显示或隐藏容器
             document.getElementById('selectedTagsContainer').style.display = 
-                (selectedTagsMap.size > 0 || customTagsArray.length > 0) ? 'block' : 'none';
+                (addedTagIds.size > 0 || addedCustomTags.size > 0) ? 'block' : 'none';
         }
         
         // 创建标签元素
@@ -571,6 +658,99 @@ $stmt->close();
                 closeTagModal();
             }
         }
+        
+        // 现有JavaScript代码...
+  
+        // 添加位置功能
+        document.addEventListener('DOMContentLoaded', function() {
+          const enableLocationCheckbox = document.getElementById('enableLocation');
+          const locationStatusDiv = document.getElementById('locationStatus');
+          const locationDataInput = document.getElementById('locationData');
+          const updateLocationBtn = document.getElementById('updateLocationBtn');
+          
+          function updateLocation() {
+            locationStatusDiv.style.display = 'block';
+            locationStatusDiv.textContent = '正在获取位置信息...';
+            
+            // 检查浏览器是否支持地理位置API
+            if (navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition(
+                // 成功获取位置
+                function(position) {
+                  const latitude = position.coords.latitude;
+                  const longitude = position.coords.longitude;
+                  
+                  // 调用反向地理编码API获取地址信息
+                  fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`)
+                    .then(response => response.json())
+                    .then(data => {
+                      // 存储位置信息
+                      const locationInfo = {
+                        latitude: latitude,
+                        longitude: longitude,
+                        address: data.display_name || '未知地点'
+                      };
+                      
+                      locationDataInput.value = JSON.stringify(locationInfo);
+                      locationStatusDiv.textContent = `位置: ${locationInfo.address}`;
+                      if (updateLocationBtn) updateLocationBtn.style.display = 'inline-block';
+                    })
+                    .catch(error => {
+                      console.error('获取地址信息失败:', error);
+                      const locationInfo = {
+                        latitude: latitude,
+                        longitude: longitude,
+                        address: '位置已获取，但无法解析详细地址'
+                      };
+                      locationDataInput.value = JSON.stringify(locationInfo);
+                      locationStatusDiv.textContent = `位置已获取 (${latitude.toFixed(6)}, ${longitude.toFixed(6)})`;
+                      if (updateLocationBtn) updateLocationBtn.style.display = 'inline-block';
+                    });
+                },
+                // 获取位置失败
+                function(error) {
+                  let errorMessage = '无法获取位置信息: ';
+                  switch(error.code) {
+                    case error.PERMISSION_DENIED:
+                      errorMessage += '用户拒绝了位置请求。';
+                      break;
+                    case error.POSITION_UNAVAILABLE:
+                      errorMessage += '位置信息不可用。';
+                      break;
+                    case error.TIMEOUT:
+                      errorMessage += '获取位置请求超时。';
+                      break;
+                    case error.UNKNOWN_ERROR:
+                      errorMessage += '发生未知错误。';
+                      break;
+                  }
+                  locationStatusDiv.textContent = errorMessage;
+                }
+              );
+            } else {
+              locationStatusDiv.textContent = '您的浏览器不支持地理位置功能。';
+            }
+          }
+          
+          enableLocationCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+              if (!locationDataInput.value) {
+                updateLocation();
+              }
+            } else {
+              locationStatusDiv.style.display = 'none';
+              locationDataInput.value = '';
+              if (updateLocationBtn) updateLocationBtn.style.display = 'none';
+            }
+          });
+          
+          if (updateLocationBtn) {
+            updateLocationBtn.addEventListener('click', function(e) {
+              e.preventDefault();
+              updateLocation();
+            });
+          }
+        });
     </script>
 </body>
 </html>

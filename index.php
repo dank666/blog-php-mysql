@@ -103,6 +103,46 @@ $currentUser = getCurrentUser();
             color: #666;
             margin-bottom: 10px;
         }
+
+        .post-date {
+            font-size: 0.9em;
+            color: #999;
+        }
+
+        .post-location {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+            font-size: 14px;
+            color: #555;
+        }
+
+        .location-icon {
+            margin-right: 5px;
+            font-style: normal;
+        }
+
+        .location-option {
+            margin: 10px 0;
+        }
+
+        #updateLocationBtn {
+            background-color: #f1f1f1;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        #updateLocationBtn:hover {
+            background-color: #ddd;
+        }
+
+        .post-preview {
+            margin-top: 10px;
+            font-size: 1.1em;
+        }
     </style>
 </head>
 <body>
@@ -227,6 +267,15 @@ $currentUser = getCurrentUser();
                 echo htmlspecialchars($row["topic_date"]);
                 echo '</div>';
                 
+                // 显示位置信息（如果有）
+                if (!empty($row['location'])):
+                echo '<span class="post-location">
+                      <i class="location-icon">📍</i> 
+                      ' . htmlspecialchars($row['location']) . '
+                      </span>';
+                endif;
+
+                // 显示图片（如果有）
                 if (!empty($row["image_filename"]) && $row["image_filename"] !== "NONE") {
                     echo '<img src="images/' . htmlspecialchars($row["image_filename"]) . '" alt="Post Image" style="max-width:100%;height:auto;">';
                 }

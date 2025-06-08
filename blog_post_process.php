@@ -33,6 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $content = trim($_POST['blogpara'] ?? '');
     $tags = $_POST['tags'] ?? []; // 获取选中的已有标签
     $customTags = $_POST['custom_tags'] ?? ''; // 获取自定义标签
+    $locationData = $_POST['location_data'] ?? ''; // 获取位置数据
     $error = '';
 
     // 保存用户输入到 session
@@ -98,9 +99,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $conn->begin_transaction();
     
     try {
-        // 插入帖子到数据库，包含图片信息
-        $stmt = $conn->prepare("INSERT INTO blog_table (topic_title, topic_date, topic_para, image_filename, user_id) VALUES (?, NOW(), ?, ?, ?)");
-        $stmt->bind_param("sssi", $title, $content, $imageFilename, $_SESSION['user_id']);
+        // 处理位置数据
+        $location = null;
+        if (!empty($locationData)) {
+            // 解析位置JSON数据
+            $locationInfo = json_decode($locationData, true);
+            if ($locationInfo && isset($locationInfo['address'])) {
+                $location = $locationInfo['address'];
+                // 可选：限制位置文本长度
+                if (strlen($location) > 255) {
+                    $location = substr($location, 0, 252) . '...';
+                }
+            }
+        }
+
+        // 插入帖子到数据库，包含图片和位置信息
+        $stmt = $conn->prepare("INSERT INTO blog_table (topic_title, topic_date, topic_para, image_filename, location, user_id) VALUES (?, NOW(), ?, ?, ?, ?)");
+        $stmt->bind_param("ssssi", $title, $content, $imageFilename, $location, $_SESSION['user_id']);
         $stmt->execute();
         $postId = $stmt->insert_id;
         $stmt->close();
@@ -150,7 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // 插入文章标签关系
         if (!empty($tags)) {
-            $stmt = $conn->prepare("INSERT INTO post_tags (post_id, tag_id) VALUES (?, ?)");
+            $stmt = $conn->prepare("INSERT IGNORE INTO post_tags (post_id, tag_id) VALUES (?, ?)");
             foreach ($tags as $tagId) {
                 $stmt->bind_param("ii", $postId, $tagId);
                 $stmt->execute();
