@@ -22,12 +22,30 @@ if ($conn->connect_error) {
     die("数据库连接失败: " . $conn->connect_error);
 }
 
+// 获取当前文章的标签
+$existingTags = [];
+$stmt = $conn->prepare("
+    SELECT t.id, t.name 
+    FROM tags t
+    JOIN post_tags pt ON t.id = pt.tag_id
+    WHERE pt.post_id = ?
+");
+$stmt->bind_param("i", $id);
+$stmt->execute();
+$tagResult = $stmt->get_result();
+while ($tag = $tagResult->fetch_assoc()) {
+    $existingTags[$tag['id']] = $tag['name'];
+}
+$stmt->close();
+
 // 处理表单提交
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $postId = (int)$_POST['post_id'];
     $title = trim($_POST['title'] ?? '');
     $date = trim($_POST['date'] ?? '');
     $content = trim($_POST['content'] ?? '');
+    $tags = $_POST['tags'] ?? []; // 获取选中的已有标签
+    $customTags = $_POST['custom_tags_array'] ?? []; // 获取自定义标签
     $error = '';
 
     // 检查必填字段
@@ -82,11 +100,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 更新帖子到数据库
     $stmt = $conn->prepare("UPDATE blog_table SET topic_title = ?, topic_date = ?, topic_para = ?, image_filename = IFNULL(?, image_filename) WHERE id = ?");
     $stmt->bind_param("ssssi", $title, $date, $content, $imageFilename, $postId);
-    if ($stmt->execute()) {
-        echo "<script>alert('帖子更新成功！'); window.location.href = 'index.php';</script>";
-    } else {
-        echo "<script>alert('帖子更新失败，请重试。'); window.history.back();</script>";
+    
+    // 开启事务
+    $conn->begin_transaction();
+    
+    try {
+        // 更新文章内容
+        $stmt->execute();
+        
+        // 删除旧的标签关联
+        $deleteStmt = $conn->prepare("DELETE FROM post_tags WHERE post_id = ?");
+        $deleteStmt->bind_param("i", $postId);
+        $deleteStmt->execute();
+        $deleteStmt->close();
+        
+        // 处理自定义标签
+        foreach ($customTags as $tagName) {
+            if (!empty($tagName)) {
+                // 检查标签是否已存在
+                $tagStmt = $conn->prepare("SELECT id FROM tags WHERE name = ?");
+                $tagStmt->bind_param("s", $tagName);
+                $tagStmt->execute();
+                $tagResult = $tagStmt->get_result();
+                
+                if ($tagResult->num_rows > 0) {
+                    $tagId = $tagResult->fetch_assoc()['id'];
+                } else {
+                    // 插入新标签
+                    $newTagStmt = $conn->prepare("INSERT INTO tags (name) VALUES (?)");
+                    $newTagStmt->bind_param("s", $tagName);
+                    $newTagStmt->execute();
+                    $tagId = $conn->insert_id;
+                    $newTagStmt->close();
+                }
+                
+                $tagStmt->close();
+                $tags[] = $tagId; // 将新标签的ID添加到标签列表
+            }
+        }
+        
+        // 插入文章标签关系
+        if (!empty($tags)) {
+            $tagRelStmt = $conn->prepare("INSERT INTO post_tags (post_id, tag_id) VALUES (?, ?)");
+            foreach ($tags as $tagId) {
+                $tagRelStmt->bind_param("ii", $postId, $tagId);
+                $tagRelStmt->execute();
+            }
+            $tagRelStmt->close();
+        }
+        
+        // 提交事务
+        $conn->commit();
+        echo "<script>alert('文章更新成功！'); window.location.href = 'index.php';</script>";
+    } catch (Exception $e) {
+        // 回滚事务
+        $conn->rollback();
+        echo "<script>alert('文章更新失败，请重试。'); window.history.back();</script>";
     }
+    
     $stmt->close();
 }
 
@@ -103,7 +174,6 @@ if ($result->num_rows > 0) {
 }
 
 $stmt->close();
-$conn->close();
 ?>
 
 <!DOCTYPE html>
@@ -113,6 +183,109 @@ $conn->close();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>编辑博客文章</title>
     <link rel="stylesheet" href="styles/style.css">
+    <style>
+        /* 模态框样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 70%;
+            border-radius: 8px;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: black;
+        }
+        
+        .tag-list-container {
+            position: relative;
+            overflow: hidden;
+            transition: height 0.3s ease;
+        }
+        
+        .tag-list {
+            margin-bottom: 15px;
+        }
+        
+        /* 预览标签样式 */
+        .preview-tags {
+            margin-bottom: 10px;
+        }
+        
+        /* 所有标签样式 */
+        .all-tags {
+            max-height: 200px; /* 固定高度，超出时显示滚动条 */
+            overflow-y: auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 5px;
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+        
+        #showAllTagsBtn {
+            background-color: #f1f1f1;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        
+        #showAllTagsBtn:hover {
+            background-color: #ddd;
+        }
+        
+        .tag-item {
+            margin: 5px;
+            display: inline-block;
+        }
+
+        .selected-tags-area {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        
+        .tag-badge {
+            background-color: #007BFF;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            display: inline-flex;
+            align-items: center;
+            font-size: 14px;
+        }
+        
+        .tag-badge .remove-tag {
+            margin-left: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+    </style>
 </head>
 <body>
     <div class="top-bar">
@@ -154,7 +327,79 @@ $conn->close();
 
             <br><br>
             
+            <!-- 添加标签按钮 -->
+            <center><a style="text-decoration: none;" href="#" id="saveBtn" onclick="openTagModal(); return false;">修改标签</a></center>
+
+            <!-- 显示已选标签的区域 -->
+            <div id="selectedTagsContainer" style="margin: 10px 0; text-align: center;">
+                <div id="selectedTags" class="selected-tags-area"></div>
+            </div>
+
+            <br>
+            
             <button id="saveBtn" type="submit">更新文章</button>
+            
+            <!-- 标签模态框 -->
+            <div id="tagModal" class="modal">
+                <div class="modal-content">
+                    <span class="close" onclick="closeTagModal()">&times;</span>
+                    <h3>选择标签 <button type="button" id="showAllTagsBtn" onclick="toggleAllTags()">显示全部</button></h3>
+                    <div id="tagListContainer" class="tag-list-container">
+                        <div class="tag-list" id="tagList">
+                            <?php
+                            $result = $conn->query("SELECT * FROM tags ORDER BY name");
+                            $count = 0;
+                            $totalTags = $result ? $result->num_rows : 0;
+                            
+                            if ($totalTags > 0) {
+                                echo '<div id="previewTags" class="preview-tags">';
+                                // 只显示前5个标签作为预览
+                                while ($row = $result->fetch_assoc()) {
+                                    $count++;
+                                    $isChecked = isset($existingTags[$row['id']]) ? 'checked' : '';
+                                    echo '<div class="tag-item">';
+                                    echo '<input type="checkbox" name="tags[]" value="'.$row['id'].'" id="tag'.$row['id'].'" '.$isChecked.' onchange="updateSelectedTags()">';
+                                    echo '<label for="tag'.$row['id'].'">'.$row['name'].'</label>';
+                                    echo '</div>';
+                                    
+                                    // 只显示前5个作为预览
+                                    if ($count >= 5) {
+                                        break;
+                                    }
+                                }
+                                echo '</div>';
+                                
+                                // 重置结果指针
+                                $result->data_seek(0);
+                                
+                                // 所有标签（初始隐藏）
+                                echo '<div id="allTags" class="all-tags" style="display:none;">';
+                                while ($row = $result->fetch_assoc()) {
+                                    $isChecked = isset($existingTags[$row['id']]) ? 'checked' : '';
+                                    echo '<div class="tag-item">';
+                                    echo '<input type="checkbox" name="tags[]" value="'.$row['id'].'" id="tag'.$row['id'].'" '.$isChecked.' onchange="updateSelectedTags()">';
+                                    echo '<label for="tag'.$row['id'].'">'.$row['name'].'</label>';
+                                    echo '</div>';
+                                }
+                                echo '</div>';
+                                
+                                // 如果标签太少，隐藏显示全部按钮
+                                if ($totalTags <= 5) {
+                                    echo '<script>document.getElementById("showAllTagsBtn").style.display = "none";</script>';
+                                }
+                            } else {
+                                echo '<p>暂无标签</p>';
+                            }
+                            ?>
+                        </div>
+                    </div>
+                    <h3>添加自定义标签</h3>
+                    <p>用逗号分隔多个标签</p>
+                    <input type="text" name="custom_tags" id="customTags" style="width: 100%" placeholder="例如: 篮球, 咖啡, 阅读">
+                    <br><br>
+                    <center><button type="button" onclick="saveTagsAndClose()" style="padding: 5px 15px;">确定</button></center>
+                </div>
+            </div>
         </form>
 
         <br>
@@ -163,5 +408,170 @@ $conn->close();
     </div>
 
     <script src="scripts/script.js"></script>
+    <script>
+        // 存储已选择的标签
+        let selectedTagsMap = new Map(); // 使用Map存储标签ID/名称对
+        let customTagsArray = []; // 存储自定义标签
+        
+        // 初始化已选标签
+        <?php foreach ($existingTags as $id => $name): ?>
+            selectedTagsMap.set('<?php echo $id; ?>', '<?php echo addslashes($name); ?>');
+        <?php endforeach; ?>
+        
+        // 标签模态框功能
+        function openTagModal() {
+            document.getElementById('tagModal').style.display = 'block';
+        }
+        
+        function closeTagModal() {
+            document.getElementById('tagModal').style.display = 'none';
+        }
+        
+        // 更新已选标签（用于复选框改变时）
+        function updateSelectedTags() {
+            const checkboxes = document.querySelectorAll('input[name="tags[]"]:checked');
+            
+            // 清除之前的选择
+            selectedTagsMap.clear();
+            
+            // 添加新选择的标签
+            checkboxes.forEach(checkbox => {
+                const tagId = checkbox.value;
+                const tagName = document.querySelector(`label[for="tag${tagId}"]`).textContent;
+                selectedTagsMap.set(tagId, tagName);
+                
+                // 同步复选框状态
+                syncCheckboxState(tagId, true);
+            });
+            
+            // 更新显示
+            renderSelectedTags();
+        }
+        
+        // 保存标签并关闭模态框
+        function saveTagsAndClose() {
+            // 处理自定义标签
+            const customTagsInput = document.getElementById('customTags').value.trim();
+            
+            if (customTagsInput) {
+                // 分割并清理自定义标签
+                customTagsArray = customTagsInput.split(',')
+                    .map(tag => tag.trim())
+                    .filter(tag => tag.length > 0);
+            }
+            
+            // 渲染所有选中的标签
+            renderSelectedTags();
+            
+            // 关闭模态框
+            closeTagModal();
+        }
+        
+        // 渲染已选标签到页面
+        function renderSelectedTags() {
+            const container = document.getElementById('selectedTags');
+            container.innerHTML = ''; // 清空容器
+            
+            // 添加已有标签
+            selectedTagsMap.forEach((tagName, tagId) => {
+                const tagElement = createTagElement(tagName, 'existing', tagId);
+                container.appendChild(tagElement);
+                
+                // 确保有一个隐藏的input用于表单提交
+                const hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.name = 'tags[]';
+                hiddenInput.value = tagId;
+                container.appendChild(hiddenInput);
+            });
+            
+            // 添加自定义标签
+            customTagsArray.forEach(tagName => {
+                const tagElement = createTagElement(tagName, 'custom');
+                container.appendChild(tagElement);
+                
+                // 确保有一个隐藏的input用于表单提交
+                const hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.name = 'custom_tags_array[]';
+                hiddenInput.value = tagName;
+                container.appendChild(hiddenInput);
+            });
+            
+            // 显示或隐藏容器
+            document.getElementById('selectedTagsContainer').style.display = 
+                (selectedTagsMap.size > 0 || customTagsArray.length > 0) ? 'block' : 'none';
+        }
+        
+        // 创建标签元素
+        function createTagElement(tagName, type, tagId = null) {
+            const tagElement = document.createElement('span');
+            tagElement.className = 'tag-badge';
+            tagElement.textContent = tagName;
+            
+            // 添加删除按钮
+            const removeButton = document.createElement('span');
+            removeButton.className = 'remove-tag';
+            removeButton.textContent = ' ×';
+            removeButton.onclick = function() {
+                if (type === 'existing' && tagId) {
+                    // 取消选中复选框
+                    const checkbox = document.getElementById(`tag${tagId}`);
+                    if (checkbox) checkbox.checked = false;
+                    selectedTagsMap.delete(tagId);
+                } else if (type === 'custom') {
+                    // 从自定义标签数组中删除
+                    customTagsArray = customTagsArray.filter(t => t !== tagName);
+                }
+                renderSelectedTags();
+            };
+            
+            tagElement.appendChild(removeButton);
+            return tagElement;
+        }
+        
+        // 切换显示所有标签
+        function toggleAllTags() {
+            const previewTags = document.getElementById('previewTags');
+            const allTags = document.getElementById('allTags');
+            const button = document.getElementById('showAllTagsBtn');
+            
+            if (allTags.style.display === 'none') {
+                // 显示所有标签
+                previewTags.style.display = 'none';
+                allTags.style.display = 'block';
+                button.textContent = '收起';
+            } else {
+                // 只显示预览标签
+                previewTags.style.display = 'block';
+                allTags.style.display = 'none';
+                button.textContent = '显示全部';
+            }
+        }
+        
+        // 确保标签选择状态在预览和全部视图之间保持同步
+        function syncCheckboxState(tagId, checked) {
+            const previewCheckbox = document.querySelector(`#previewTags input[id="tag${tagId}"]`);
+            const allTagsCheckbox = document.querySelector(`#allTags input[id="tag${tagId}"]`);
+            
+            if (previewCheckbox) previewCheckbox.checked = checked;
+            if (allTagsCheckbox) allTagsCheckbox.checked = checked;
+        }
+        
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 渲染已有标签
+            renderSelectedTags();
+        });
+        
+        // 点击模态框外部关闭
+        window.onclick = function(event) {
+            var modal = document.getElementById('tagModal');
+            if (event.target == modal) {
+                closeTagModal();
+            }
+        }
+    </script>
 </body>
 </html>
+<?php $conn->close(); ?>

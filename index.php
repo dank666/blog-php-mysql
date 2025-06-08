@@ -27,7 +27,7 @@ $currentUser = getCurrentUser();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>多用户博客系统</title>
+    <title>智域博客</title>
     <link rel="stylesheet" href="styles/style.css">
     <style>
         .all-posts-container {
@@ -107,7 +107,7 @@ $currentUser = getCurrentUser();
 </head>
 <body>
     <div class="top-bar">
-        <span id="topBarTitle">多用户博客系统</span>
+        <span id="topBarTitle">智域博客</span>
     </div>
     
     <div class="nav-bar">
@@ -154,7 +154,7 @@ $currentUser = getCurrentUser();
         if ($currentPage < 1) $currentPage = 1;
 
         // 每页显示的文章数量
-        $postsPerPage = 5;
+        $postsPerPage = 24;
 
         // 计算偏移量
         $offset = ($currentPage - 1) * $postsPerPage;

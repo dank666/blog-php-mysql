@@ -408,7 +408,7 @@ $conn->close();
 </head>
 <body>
     <div class="top-bar">
-        <span id="topBarTitle">多用户博客系统</span>
+        <span id="topBarTitle">智域博客</span>
         <div class="top-bar-right">
             <a href="index.php">首页</a>
             <?php if (isLoggedIn()): ?>

@@ -6,6 +6,7 @@ ini_set('display_errors', 1);
 // 加载配置和认证
 $config = include 'config.php';
 include 'includes/auth.php';
+include 'includes/database.php';
 
 // 要求用户登录才能发布文章
 requireLogin();
@@ -30,6 +31,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $title = trim($_POST['blogtitle'] ?? '');
     $date = trim($_POST['blogdate'] ?? '');
     $content = trim($_POST['blogpara'] ?? '');
+    $tags = $_POST['tags'] ?? []; // 获取选中的已有标签
+    $customTags = $_POST['custom_tags'] ?? ''; // 获取自定义标签
     $error = '';
 
     // 保存用户输入到 session
@@ -50,23 +53,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($_FILES['uploadimage']['error'] !== UPLOAD_ERR_OK) {
             $error = "图片上传失败，请重试。";
         } else {
-            // 验证图片大小（2MB限制）
-            $maxFileSize = 2 * 1024 * 1024; // 2MB
-            if ($_FILES['uploadimage']['size'] > $maxFileSize) {
-                $error = "图片太大，请选择小于 2MB 的图片。";
-            } else {
-                // 处理图片上传
-                $uploadDir = 'images/';
-                if (!is_dir($uploadDir)) {
-                    mkdir($uploadDir, 0755, true);
-                }
-
-                $extension = pathinfo($_FILES['uploadimage']['name'], PATHINFO_EXTENSION);
-                $imageFilename = uniqid('post_') . '.' . $extension;
-
-                if (!move_uploaded_file($_FILES['uploadimage']['tmp_name'], $uploadDir . $imageFilename)) {
-                    $error = "图片上传失败，请重试。";
-                }
+            // 处理图片上传
+            $target_dir = "images/";
+            
+            // 确保目录存在
+            if (!is_dir($target_dir)) {
+                mkdir($target_dir, 0755, true);
+            }
+            
+            // 生成唯一文件名
+            $extension = pathinfo($_FILES['uploadimage']['name'], PATHINFO_EXTENSION);
+            $imageFilename = uniqid('post_') . '.' . $extension;
+            $target_file = $target_dir . $imageFilename;
+            
+            // 检查图片类型
+            $check = getimagesize($_FILES['uploadimage']['tmp_name']);
+            if ($check === false) {
+                // 不是有效图片
+                $error = "文件不是有效的图片。";
+                $imageFilename = 'NONE';
+            } elseif (!move_uploaded_file($_FILES['uploadimage']['tmp_name'], $target_file)) {
+                // 处理上传失败
+                $error = "图片上传失败，请重试。";
+                $imageFilename = 'NONE';
             }
         }
     }
@@ -84,33 +93,83 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // 获取当前用户ID
     $currentUser = getCurrentUserId();
+    
+    // 使用事务确保数据一致性
+    $conn->begin_transaction();
+    
+    try {
+        // 插入帖子到数据库，包含图片信息
+        $stmt = $conn->prepare("INSERT INTO blog_table (topic_title, topic_date, topic_para, image_filename, user_id) VALUES (?, NOW(), ?, ?, ?)");
+        $stmt->bind_param("sssi", $title, $content, $imageFilename, $_SESSION['user_id']);
+        $stmt->execute();
+        $postId = $stmt->insert_id;
+        $stmt->close();
 
-    // 插入帖子到数据库
-    $stmt = $conn->prepare("INSERT INTO blog_table (topic_title, topic_date, topic_para, image_filename, user_id) VALUES (?, ?, ?, ?, ?)");
-    $stmt->bind_param("ssssi", $title, $date, $content, $imageFilename, $currentUser);
-    if ($stmt->execute()) {
-        // 清除 session 数据和 localStorage
-        unset($_SESSION['blogtitle']);
-        unset($_SESSION['blogdate']);
-        unset($_SESSION['blogpara']);
-        echo "<script>
-            localStorage.removeItem('blogtitle');
-            localStorage.removeItem('blogpara');
-            alert('帖子发布成功！'); 
-            window.location.href = 'index.php';
-        </script>";
-    } else {
-        echo "<script>
-            localStorage.setItem('blogtitle', " . json_encode($title) . ");
-            localStorage.setItem('blogpara', " . json_encode($content) . ");
-            alert('发布失败，请重试。'); 
-            window.location.href = 'new_post.php';
-        </script>";
+        // 在插入文章标签关系前，去除重复的标签
+        $tags = array_unique($tags); // 确保标签不重复
+
+        // 处理自定义标签
+        if (!empty($customTags)) {
+            // 解析自定义标签
+            $customTagsArray = array_map('trim', explode(',', $customTags));
+            $customTagsArray = array_filter($customTagsArray); // 移除空标签
+            $processedCustomTags = []; // 跟踪已处理的自定义标签名称
+            
+            foreach ($customTagsArray as $tagName) {
+                // 避免空标签和重复处理相同的自定义标签
+                if (!empty($tagName) && !in_array(strtolower($tagName), $processedCustomTags)) {
+                    $processedCustomTags[] = strtolower($tagName); // 记录已处理的标签
+                    
+                    // 检查标签是否已存在
+                    $stmt = $conn->prepare("SELECT id FROM tags WHERE LOWER(name) = LOWER(?)");
+                    $stmt->bind_param("s", $tagName);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    
+                    if ($result->num_rows > 0) {
+                        $tagId = $result->fetch_assoc()['id'];
+                        // 只有当这个ID不在标签数组中时才添加
+                        if (!in_array($tagId, $tags)) {
+                            $tags[] = $tagId;
+                        }
+                    } else {
+                        // 插入新标签
+                        $stmt = $conn->prepare("INSERT INTO tags (name) VALUES (?)");
+                        $stmt->bind_param("s", $tagName);
+                        $stmt->execute();
+                        $tagId = $stmt->insert_id;
+                        $tags[] = $tagId;
+                    }
+                    $stmt->close();
+                }
+            }
+        }
+
+        // 再次确保所有标签都是唯一的
+        $tags = array_unique($tags);
+
+        // 插入文章标签关系
+        if (!empty($tags)) {
+            $stmt = $conn->prepare("INSERT INTO post_tags (post_id, tag_id) VALUES (?, ?)");
+            foreach ($tags as $tagId) {
+                $stmt->bind_param("ii", $postId, $tagId);
+                $stmt->execute();
+            }
+            $stmt->close();
+        }
+        
+        // 提交事务
+        $conn->commit();
+        
+        header("Location: index.php");
+        exit;
+    } catch (Exception $e) {
+        // 回滚事务
+        $conn->rollback();
+        echo "<script>alert('发布文章失败: " . $e->getMessage() . "'); window.location.href = 'new_post.php';</script>";
+        exit;
     }
-    $stmt->close();
 }
-
-$conn->close();
 ?>
 
 <!DOCTYPE html>

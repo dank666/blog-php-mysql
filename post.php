@@ -4,19 +4,45 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
+session_start();
 include 'includes/auth.php';
-$config = include 'config.php';
+include 'includes/database.php';
 
-// 连接数据库
-$conn = new mysqli(
-    $config['db']['host'],
-    $config['db']['username'],
-    $config['db']['password'],
-    $config['db']['database']
-);
+$config = include 'config.php';
+$conn = getDbConnection($config);
 
 if ($conn->connect_error) {
     die("数据库连接失败: " . $conn->connect_error);
+}
+
+// 获取文章ID
+$postId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+
+// 检查文章是否存在
+$stmt = $conn->prepare("SELECT * FROM blog_table WHERE id = ?");
+$stmt->bind_param("i", $postId);
+$stmt->execute();
+$post = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+
+if (!$post) {
+    die("文章不存在");
+}
+
+// 记录用户访问
+if (!isset($_SESSION['viewed_posts'])) {
+    $_SESSION['viewed_posts'] = [];
+}
+
+if (!in_array($postId, $_SESSION['viewed_posts'])) {
+    // 将文章ID添加到已访问列表
+    $_SESSION['viewed_posts'][] = $postId;
+
+    // 插入或更新浏览记录
+    $stmt = $conn->prepare("INSERT INTO blog_views (post_id) VALUES (?)");
+    $stmt->bind_param("i", $postId);
+    $stmt->execute();
+    $stmt->close();
 }
 
 $post_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
@@ -132,6 +158,22 @@ if (!$error && isset($post['id'])) {
         $views_count = 0;
     }
 }
+
+// 获取文章的标签
+$stmt = $conn->prepare("
+    SELECT t.name 
+    FROM tags t
+    JOIN post_tags pt ON t.id = pt.tag_id
+    WHERE pt.post_id = ?
+");
+$stmt->bind_param("i", $postId);
+$stmt->execute();
+$tagsResult = $stmt->get_result();
+$tags = [];
+while ($row = $tagsResult->fetch_assoc()) {
+    $tags[] = $row['name'];
+}
+$stmt->close();
 
 $conn->close();
 ?>
@@ -429,7 +471,7 @@ $conn->close();
 </head>
 <body>
     <div class="top-bar">
-        <span id="topBarTitle">多用户博客系统</span>
+        <span id="topBarTitle">智域博客</span>
         <div class="top-bar-right">
             <a href="index.php">首页</a>
             <?php if (isLoggedIn()): ?>
@@ -502,12 +544,20 @@ $conn->close();
                     <?php endif; ?>
                 </div>
                 
-                <?php if ($post['image_filename'] && $post['image_filename'] != 'NONE'): ?>
-                    <img src="images/<?php echo htmlspecialchars($post['image_filename']); ?>" alt="文章图片" class="post-image">
+                <?php if (!empty($post['image_filename']) && $post['image_filename'] !== "NONE"): ?>
+                    <div class="post-image">
+                        <img src="images/<?php echo htmlspecialchars($post['image_filename']); ?>" 
+                             alt="<?php echo htmlspecialchars($post['topic_title']); ?>" style="max-width:100%;">
+                    </div>
                 <?php endif; ?>
                 
                 <div class="post-content">
                     <?php echo nl2br(htmlspecialchars($post['topic_para'])); ?>
+                </div>
+                
+                <!-- 显示文章标签 -->
+                <div class="post-tags">
+                    <strong>标签：</strong> <?php echo implode(', ', $tags); ?>
                 </div>
                 
                 <!-- 点赞和操作按钮 -->

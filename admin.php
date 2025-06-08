@@ -32,6 +32,13 @@ $success = '';
 // 1. 用户注册趋势（最近12个月）
 $months = [];
 $userCounts = [];
+
+// 获取最近12个月的月份
+for ($i = 11; $i >= 0; $i--) {
+    $months[] = date('Y-m', strtotime("-$i months"));
+}
+
+// 查询用户注册数据
 $stmt = $conn->prepare("
     SELECT 
         DATE_FORMAT(created_at, '%Y-%m') AS month,
@@ -43,14 +50,21 @@ $stmt = $conn->prepare("
 ");
 $stmt->execute();
 $result = $stmt->get_result();
+$monthUserCounts = [];
 while ($row = $result->fetch_assoc()) {
-    $months[] = $row['month'];
-    $userCounts[] = $row['count'];
+    $monthUserCounts[$row['month']] = $row['count'];
 }
 $stmt->close();
 
+// 填充每个月的数据
+foreach ($months as $month) {
+    $userCounts[] = isset($monthUserCounts[$month]) ? $monthUserCounts[$month] : 0;
+}
+
 // 2. 文章发布趋势（最近12个月）
 $postCounts = [];
+
+// 查询文章发布数据
 $stmt = $conn->prepare("
     SELECT 
         DATE_FORMAT(DATE(topic_date), '%Y-%m') AS month,
@@ -66,13 +80,14 @@ $monthPostCounts = [];
 while ($row = $result->fetch_assoc()) {
     $monthPostCounts[$row['month']] = $row['count'];
 }
-// 确保每个月都有数据，没有数据的月份设为0
+$stmt->close();
+
+// 填充每个月的数据
 foreach ($months as $month) {
     $postCounts[] = isset($monthPostCounts[$month]) ? $monthPostCounts[$month] : 0;
 }
-$stmt->close();
 
-// 3. 热门文章（阅读量前10）
+// 3. 热门文章（唯一浏览量前10）
 $hotPosts = [];
 $stmt = $conn->prepare("
     SELECT 
@@ -320,7 +335,7 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>管理面板 - 多用户博客系统</title>
+    <title>管理面板 - 智域博客</title>
     <link rel="stylesheet" href="styles/style.css">
     <style>
         .admin-container {
@@ -523,7 +538,7 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
 </head>
 <body>
     <div class="top-bar">
-        <span id="topBarTitle">多用户博客系统</span>
+        <span id="topBarTitle">智域博客</span>
         <div class="top-bar-right">
             <a href="index.php">首页</a>
             <a href="profile.php">我的资料</a>
@@ -886,15 +901,15 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
             const months = <?php echo json_encode($months); ?>;
             const userCounts = <?php echo json_encode($userCounts); ?>;
             const postCounts = <?php echo json_encode($postCounts); ?>;
-            
+
             // 如果数据为空，添加当前月份的默认数据
             if (months.length === 0) {
                 const currentDate = new Date();
                 const currentMonth = currentDate.getFullYear() + '-' + 
                                     String(currentDate.getMonth() + 1).padStart(2, '0');
                 months.push(currentMonth);
-                userCounts.push(<?php echo $newUsersCount; ?>);
-                postCounts.push(<?php echo $newPostsCount; ?>);
+                userCounts.push(0);
+                postCounts.push(0);
             }
             
             // Chart.js 配置
