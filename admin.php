@@ -337,218 +337,564 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>管理面板 - 智域博客</title>
     <link rel="stylesheet" href="styles/style.css">
+    <link rel="stylesheet" href="styles/navbar.css">
     <style>
+        /* 整体页面美化 - 与主界面保持一致 */
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            margin: 0;
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            color: #333;
+        }
+
+        /* 隐藏旧的top-bar */
+        .top-bar {
+            display: none;
+        }
+
+        /* 管理面板容器美化 */
         .admin-container {
             max-width: 1200px;
-            margin: 20px auto;
-            padding: 20px;
+            margin: 0 auto;
+            padding: 30px 20px;
         }
+
+        /* 页面标题美化 */
+        .admin-container h2 {
+            margin: 0 0 30px 0;
+            color: #667eea;
+            font-size: 32px;
+            font-weight: 700;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-align: center;
+        }
+
+        /* 消息提示美化 */
+        .error {
+            color: #ff6b6b;
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid rgba(255, 107, 107, 0.3);
+            border-radius: 15px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .error::before {
+            content: '⚠️';
+            font-size: 18px;
+        }
+
+        .success {
+            color: #4ecdc4;
+            background: rgba(78, 205, 196, 0.1);
+            border: 1px solid rgba(78, 205, 196, 0.3);
+            border-radius: 15px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .success::before {
+            content: '✅';
+            font-size: 18px;
+        }
+
+        /* 标签页美化 */
+        .tabs {
+            display: flex;
+            margin-bottom: 30px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 20px;
+            padding: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 15px 20px;
+            cursor: pointer;
+            border-radius: 15px;
+            transition: all 0.3s ease;
+            text-align: center;
+            font-weight: 600;
+            font-size: 15px;
+            color: #666;
+            position: relative;
+        }
+
+        .tab:hover {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+
+        .tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* 标签页内容美化 */
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* 管理区域美化 */
         .admin-section {
-            margin-bottom: 40px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
         }
+
+        .admin-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #4ecdc4);
+        }
+
+        .admin-section h3 {
+            margin-top: 0;
+            margin-bottom: 25px;
+            color: #667eea;
+            font-size: 24px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .admin-section h3::before {
+            font-size: 28px;
+        }
+
+        .admin-section h3:nth-of-type(1)::before { content: '👥'; }
+        .admin-section h3:nth-of-type(2)::before { content: '📝'; }
+        .admin-section h3:nth-of-type(3)::before { content: '📊'; }
+
+        /* 表格美化 */
         .admin-table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
         }
-        .admin-table th, .admin-table td {
-            border: 1px solid #ddd;
-            padding: 10px;
-            text-align: left;
-        }
+
         .admin-table th {
-            background-color: #f5f5f5;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+            border: none;
         }
+
+        .admin-table th:first-child {
+            border-top-left-radius: 15px;
+        }
+
+        .admin-table th:last-child {
+            border-top-right-radius: 15px;
+        }
+
+        .admin-table td {
+            padding: 15px 12px;
+            border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+            font-size: 14px;
+            vertical-align: middle;
+        }
+
         .admin-table tr:hover {
-            background-color: #f9f9f9;
+            background: rgba(102, 126, 234, 0.05);
         }
+
+        .admin-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .admin-table tr:last-child td:first-child {
+            border-bottom-left-radius: 15px;
+        }
+
+        .admin-table tr:last-child td:last-child {
+            border-bottom-right-radius: 15px;
+        }
+
+        /* 操作按钮美化 */
         .action-btn {
             display: inline-block;
-            padding: 5px 10px;
-            margin: 0 5px;
-            border-radius: 3px;
+            padding: 8px 15px;
+            margin: 0 3px;
+            border-radius: 20px;
             color: white;
             text-decoration: none;
             cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: none;
         }
+
         .edit-btn {
-            background-color: #28a745;
+            background: linear-gradient(45deg, #4ecdc4, #44a08d);
+            box-shadow: 0 3px 10px rgba(78, 205, 196, 0.3);
         }
+
+        .edit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(78, 205, 196, 0.4);
+        }
+
         .delete-btn {
-            background-color: #dc3545;
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            box-shadow: 0 3px 10px rgba(255, 107, 107, 0.3);
         }
-        .tabs {
-            display: flex;
-            margin-bottom: 20px;
-            border-bottom: 1px solid #ddd;
+
+        .delete-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
         }
-        .tab {
-            padding: 10px 20px;
+
+        /* 角色选择下拉框美化 */
+        select[name="role"] {
+            padding: 6px 12px;
+            border: 2px solid rgba(102, 126, 234, 0.2);
+            border-radius: 15px;
+            background: white;
+            color: #333;
+            font-size: 13px;
+            font-weight: 500;
             cursor: pointer;
+            transition: all 0.3s ease;
         }
-        .tab.active {
-            border-bottom: 2px solid #007bff;
-            font-weight: bold;
+
+        select[name="role"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 10px rgba(102, 126, 234, 0.2);
         }
-        .tab-content {
-            display: none;
+
+        select[name="role"]:disabled {
+            background: #f5f5f5;
+            cursor: not-allowed;
         }
-        .tab-content.active {
-            display: block;
-        }
-        .error {
-            color: red;
-            margin-bottom: 15px;
-        }
-        .success {
-            color: green;
-            margin-bottom: 15px;
-        }
-        
-        /* 分页样式 */
+
+        /* 分页美化 */
         .pagination {
-            margin: 20px 0;
-            text-align: center;
+            margin: 30px 0;
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
         }
+
         .page-link {
             display: inline-block;
-            padding: 5px 10px;
-            margin: 0 3px;
-            border: 1px solid #ddd;
-            border-radius: 3px;
+            padding: 10px 15px;
+            border-radius: 20px;
             text-decoration: none;
-            color: #007bff;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            min-width: 40px;
+            text-align: center;
         }
-        .page-link.active {
-            background-color: #007bff;
+
+        .page-link:not(.active) {
+            color: #667eea;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .page-link:not(.active):hover {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            border-color: #007bff;
-        }
-        .page-link:hover:not(.active) {
-            background-color: #f5f5f5;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
         }
 
-        /* 添加这段代码修改顶部导航链接颜色 */
-        .top-bar-right a {
-            color: #007bff;
-            text-decoration: none;
-            margin-left: 15px;
-            transition: color 0.2s;
-        }
-        
-        .top-bar-right a:hover {
-            color: #0056b3;
-            text-decoration: underline;
+        .page-link.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
         }
 
-        /* 统计分析页面样式 */
+        /* 统计卡片美化 */
         .stats-cards {
-            display: flex;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
-            justify-content: space-between;
             margin-bottom: 30px;
         }
 
         .stat-card {
-            background-color: white;
-            border-radius: 6px;
-            padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 25px;
             text-align: center;
-            flex: 1;
-            min-width: 150px;
-            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #4ecdc4);
         }
 
         .stat-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 5px 12px rgba(0,0,0,0.15);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
         }
 
         .stat-card-value {
-            font-size: 28px;
+            font-size: 32px;
             font-weight: bold;
-            color: #007bff;
-            margin-bottom: 5px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
         }
 
         .stat-card-label {
             color: #666;
             font-size: 14px;
+            font-weight: 500;
         }
 
+        /* 图表容器美化 */
         .stats-charts {
-            display: flex;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
             gap: 30px;
             margin-bottom: 30px;
         }
 
         .chart-container {
-            flex: 1;
-            min-width: 400px;
-            padding: 20px;
-            background-color: white;
-            border-radius: 6px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            height: 400px; /* 添加固定高度 */
-            position: relative; /* 确保 canvas 能够正确定位 */
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            height: 400px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chart-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #4ecdc4);
+        }
+
+        .chart-container h4 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #667eea;
+            font-size: 18px;
+            font-weight: 700;
         }
 
         .chart-container canvas {
-            max-height: 350px; /* 限制 canvas 最大高度 */
+            max-height: 320px;
         }
 
+        /* 统计表格容器美化 */
         .stats-tables {
-            display: flex;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
             gap: 30px;
         }
 
         .stats-table-container {
-            flex: 1;
-            min-width: 400px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stats-table-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #4ecdc4);
         }
 
         .stats-table-container h4 {
-            margin-bottom: 15px;
-            color: #333;
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #667eea;
+            font-size: 18px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
+        .stats-table-container h4::before {
+            font-size: 20px;
+        }
+
+        .stats-table-container h4:nth-of-type(1)::before { content: '🔥'; }
+        .stats-table-container h4:nth-of-type(2)::before { content: '⭐'; }
+
+        /* 链接美化 */
+        .admin-table a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+
+        .admin-table a:hover {
+            color: #764ba2;
+            text-decoration: underline;
+        }
+
+        /* 响应式设计 */
         @media (max-width: 768px) {
+            .admin-container {
+                padding: 20px 15px;
+            }
+
+            .tabs {
+                flex-direction: column;
+                gap: 5px;
+            }
+
+            .tab {
+                padding: 12px 15px;
+            }
+
+            .admin-section {
+                padding: 20px;
+            }
+
             .stats-cards {
-                flex-direction: column;
+                grid-template-columns: 1fr;
             }
-            
-            .stat-card {
-                width: 100%;
+
+            .stats-charts {
+                grid-template-columns: 1fr;
             }
-            
-            .stats-charts, .stats-tables {
-                flex-direction: column;
+
+            .chart-container {
+                height: 300px;
             }
-            
-            .chart-container, .stats-table-container {
-                width: 100%;
-                min-width: auto;
+
+            .stats-tables {
+                grid-template-columns: 1fr;
+            }
+
+            .admin-table {
+                font-size: 13px;
+            }
+
+            .admin-table th,
+            .admin-table td {
+                padding: 10px 8px;
+            }
+
+            .action-btn {
+                display: block;
+                margin: 2px 0;
+                text-align: center;
             }
         }
+
+        /* 毛玻璃效果增强 */
+        @supports (backdrop-filter: blur(10px)) {
+            .admin-section,
+            .stat-card,
+            .chart-container,
+            .stats-table-container,
+            .tabs {
+                backdrop-filter: blur(15px);
+                background: rgba(255, 255, 255, 0.8);
+            }
+        }
+
+        /* 加载动画 */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .admin-section,
+        .stat-card {
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        /* 为不同的卡片添加延迟动画 */
+        .stat-card:nth-child(1) { animation-delay: 0.1s; }
+        .stat-card:nth-child(2) { animation-delay: 0.2s; }
+        .stat-card:nth-child(3) { animation-delay: 0.3s; }
+        .stat-card:nth-child(4) { animation-delay: 0.4s; }
+        .stat-card:nth-child(5) { animation-delay: 0.5s; }
     </style>
 </head>
 <body>
-    <div class="top-bar">
-        <span id="topBarTitle">智域博客</span>
-        <div class="top-bar-right">
-            <a href="index.php">首页</a>
-            <a href="profile.php">我的资料</a>
-            <a href="settings.php">设置</a>
-            <a href="logout.php">退出</a>
-        </div>
-    </div>
+    <?php include 'includes/navbar.php'; ?>
     
     <div class="admin-container">
-        <h2>管理面板</h2>
+        <h2>🛠️ 管理面板</h2>
         
         <?php if (!empty($error)): ?>
             <div class="error"><?php echo $error; ?></div>
@@ -559,9 +905,9 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
         <?php endif; ?>
         
         <div class="tabs">
-            <div class="tab <?php echo $activeTab === 'users' ? 'active' : ''; ?>" data-tab="users">用户管理</div>
-            <div class="tab <?php echo $activeTab === 'posts' ? 'active' : ''; ?>" data-tab="posts">文章管理</div>
-            <div class="tab <?php echo $activeTab === 'stats' ? 'active' : ''; ?>" data-tab="stats">统计分析</div>
+            <div class="tab <?php echo $activeTab === 'users' ? 'active' : ''; ?>" data-tab="users">👥 用户管理</div>
+            <div class="tab <?php echo $activeTab === 'posts' ? 'active' : ''; ?>" data-tab="posts">📝 文章管理</div>
+            <div class="tab <?php echo $activeTab === 'stats' ? 'active' : ''; ?>" data-tab="stats">📊 统计分析</div>
         </div>
         
         <div class="tab-content <?php echo $activeTab === 'users' ? 'active' : ''; ?>" id="users-tab">
@@ -596,9 +942,9 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
                                 </td>
                                 <td><?php echo date('Y-m-d', strtotime($user['created_at'])); ?></td>
                                 <td>
-                                    <a href="profile.php?id=<?php echo $user['id']; ?>" class="action-btn edit-btn">查看</a>
+                                    <a href="profile.php?id=<?php echo $user['id']; ?>" class="action-btn edit-btn">👀 查看</a>
                                     <?php if ($user['id'] != getCurrentUserId()): ?>
-                                        <a href="admin.php?delete_user=<?php echo $user['id']; ?>&tab=users&user_page=<?php echo $userPage; ?>" class="action-btn delete-btn" onclick="return confirm('确定要删除此用户及其所有内容吗？此操作不可撤销!');">删除</a>
+                                        <a href="admin.php?delete_user=<?php echo $user['id']; ?>&tab=users&user_page=<?php echo $userPage; ?>" class="action-btn delete-btn" onclick="return confirm('确定要删除此用户及其所有内容吗？此操作不可撤销!');">🗑️ 删除</a>
                                     <?php endif; ?>
                                 </td>
                             </tr>
@@ -610,8 +956,8 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
                 <div class="pagination">
                     <?php if ($totalUserPages > 1): ?>
                         <?php if ($userPage > 1): ?>
-                            <a href="?user_page=1&tab=users" class="page-link">&lt;&lt;</a>
-                            <a href="?user_page=<?php echo $userPage - 1; ?>&tab=users" class="page-link">&lt;</a>
+                            <a href="?user_page=1&tab=users" class="page-link">⏮️</a>
+                            <a href="?user_page=<?php echo $userPage - 1; ?>&tab=users" class="page-link">◀️</a>
                         <?php endif; ?>
                         
                         <?php
@@ -628,8 +974,8 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
                         <?php endfor; ?>
                         
                         <?php if ($userPage < $totalUserPages): ?>
-                            <a href="?user_page=<?php echo $userPage + 1; ?>&tab=users" class="page-link">&gt;</a>
-                            <a href="?user_page=<?php echo $totalUserPages; ?>&tab=users" class="page-link">&gt;&gt;</a>
+                            <a href="?user_page=<?php echo $userPage + 1; ?>&tab=users" class="page-link">▶️</a>
+                            <a href="?user_page=<?php echo $totalUserPages; ?>&tab=users" class="page-link">⏭️</a>
                         <?php endif; ?>
                     <?php endif; ?>
                 </div>
@@ -661,9 +1007,9 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
                                 </td>
                                 <td><?php echo htmlspecialchars($post['topic_date']); ?></td>
                                 <td>
-                                    <a href="post.php?id=<?php echo $post['id']; ?>" class="action-btn edit-btn">查看</a>
-                                    <a href="edit_post.php?id=<?php echo $post['id']; ?>" class="action-btn edit-btn">编辑</a>
-                                    <a href="admin.php?delete_post=<?php echo $post['id']; ?>&tab=posts&post_page=<?php echo $postPage; ?>" class="action-btn delete-btn" onclick="return confirm('确定要删除此文章吗？');">删除</a>
+                                    <a href="post.php?id=<?php echo $post['id']; ?>" class="action-btn edit-btn">👀 查看</a>
+                                    <a href="edit_post.php?id=<?php echo $post['id']; ?>" class="action-btn edit-btn">✏️ 编辑</a>
+                                    <a href="admin.php?delete_post=<?php echo $post['id']; ?>&tab=posts&post_page=<?php echo $postPage; ?>" class="action-btn delete-btn" onclick="return confirm('确定要删除此文章吗？');">🗑️ 删除</a>
                                 </td>
                             </tr>
                         <?php endwhile; ?>
@@ -674,8 +1020,8 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
                 <div class="pagination">
                     <?php if ($totalPostPages > 1): ?>
                         <?php if ($postPage > 1): ?>
-                            <a href="?post_page=1&tab=posts" class="page-link">&lt;&lt;</a>
-                            <a href="?post_page=<?php echo $postPage - 1; ?>&tab=posts" class="page-link">&lt;</a>
+                            <a href="?post_page=1&tab=posts" class="page-link">⏮️</a>
+                            <a href="?post_page=<?php echo $postPage - 1; ?>&tab=posts" class="page-link">◀️</a>
                         <?php endif; ?>
                         
                         <?php
@@ -692,8 +1038,8 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
                         <?php endfor; ?>
                         
                         <?php if ($postPage < $totalPostPages): ?>
-                            <a href="?post_page=<?php echo $postPage + 1; ?>&tab=posts" class="page-link">&gt;</a>
-                            <a href="?post_page=<?php echo $totalPostPages; ?>&tab=posts" class="page-link">&gt;&gt;</a>
+                            <a href="?post_page=<?php echo $postPage + 1; ?>&tab=posts" class="page-link">▶️</a>
+                            <a href="?post_page=<?php echo $totalPostPages; ?>&tab=posts" class="page-link">⏭️</a>
                         <?php endif; ?>
                     <?php endif; ?>
                 </div>
@@ -708,40 +1054,40 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
                 <div class="stats-cards">
                     <div class="stat-card">
                         <div class="stat-card-value"><?php echo $totalUsersCount; ?></div>
-                        <div class="stat-card-label">总用户数</div>
+                        <div class="stat-card-label">👥 总用户数</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-card-value"><?php echo $totalPostsCount; ?></div>
-                        <div class="stat-card-label">总文章数</div>
+                        <div class="stat-card-label">📝 总文章数</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-card-value"><?php echo $totalViewsCount; ?></div>
-                        <div class="stat-card-label">总浏览量</div>
+                        <div class="stat-card-label">👁️ 总浏览量</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-card-value"><?php echo $newUsersCount; ?></div>
-                        <div class="stat-card-label">最近7天新增用户</div>
+                        <div class="stat-card-label">🆕 7天新增用户</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-card-value"><?php echo $newPostsCount; ?></div>
-                        <div class="stat-card-label">最近7天新增文章</div>
+                        <div class="stat-card-label">📄 7天新增文章</div>
                     </div>
                 </div>
                 
                 <!-- 趋势图表 -->
                 <div class="stats-charts">
                     <div class="chart-container">
-                        <h4>用户增长趋势</h4>
+                        <h4>📈 用户增长趋势</h4>
                         <canvas id="userGrowthChart"></canvas>
                     </div>
                     
                     <div class="chart-container">
-                        <h4>文章发布趋势</h4>
+                        <h4>📊 文章发布趋势</h4>
                         <canvas id="postGrowthChart"></canvas>
                     </div>
                 </div>
                 
-                <!-- 热门文章 -->
+                <!-- 热门文章和活跃用户 -->
                 <div class="stats-tables">
                     <div class="stats-table-container">
                         <h4>热门文章（阅读量排名）</h4>
@@ -761,7 +1107,15 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
                                 while ($post = $hotPosts->fetch_assoc()): 
                                 ?>
                                     <tr>
-                                        <td><?php echo $rank++; ?></td>
+                                        <td>
+                                            <?php if ($rank <= 3): ?>
+                                                <span style="font-size: 18px;">
+                                                    <?php echo $rank == 1 ? '🥇' : ($rank == 2 ? '🥈' : '🥉'); ?>
+                                                </span>
+                                            <?php else: ?>
+                                                <?php echo $rank; ?>
+                                            <?php endif; ?>
+                                        </td>
                                         <td>
                                             <a href="post.php?id=<?php echo $post['id']; ?>">
                                                 <?php echo htmlspecialchars($post['topic_title']); ?>
@@ -775,10 +1129,10 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
                                         <td><?php echo htmlspecialchars($post['topic_date']); ?></td>
                                         <td><?php echo $post['view_count']; ?></td>
                                     </tr>
-                                <?php endwhile; ?>
+                                <?php $rank++; endwhile; ?>
                                 <?php if ($rank === 1): ?>
                                     <tr>
-                                        <td colspan="5" style="text-align: center;">暂无数据</td>
+                                        <td colspan="5" style="text-align: center; color: #999; padding: 30px;">📭 暂无数据</td>
                                     </tr>
                                 <?php endif; ?>
                             </tbody>
@@ -803,17 +1157,25 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
                                 while ($user = $activeUsers->fetch_assoc()): 
                                 ?>
                                     <tr>
-                                        <td><?php echo $rank++; ?></td>
+                                        <td>
+                                            <?php if ($rank <= 3): ?>
+                                                <span style="font-size: 18px;">
+                                                    <?php echo $rank == 1 ? '🥇' : ($rank == 2 ? '🥈' : '🥉'); ?>
+                                                </span>
+                                            <?php else: ?>
+                                                <?php echo $rank; ?>
+                                            <?php endif; ?>
+                                        </td>
                                         <td><?php echo htmlspecialchars($user['username']); ?></td>
                                         <td><?php echo $user['post_count']; ?></td>
                                         <td>
-                                            <a href="profile.php?id=<?php echo $user['id']; ?>" class="action-btn edit-btn">查看资料</a>
+                                            <a href="profile.php?id=<?php echo $user['id']; ?>" class="action-btn edit-btn">👀 查看资料</a>
                                         </td>
                                     </tr>
-                                <?php endwhile; ?>
+                                <?php $rank++; endwhile; ?>
                                 <?php if ($rank === 1): ?>
                                     <tr>
-                                        <td colspan="4" style="text-align: center;">暂无数据</td>
+                                        <td colspan="4" style="text-align: center; color: #999; padding: 30px;">📭 暂无数据</td>
                                     </tr>
                                 <?php endif; ?>
                             </tbody>
@@ -947,10 +1309,11 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
                     datasets: [{
                         label: '新注册用户数',
                         data: userCounts,
-                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        borderWidth: 2,
-                        tension: 0.1
+                        backgroundColor: 'rgba(102, 126, 234, 0.2)',
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        borderWidth: 3,
+                        tension: 0.4,
+                        fill: true
                     }]
                 },
                 options: chartOptions
@@ -964,9 +1327,10 @@ $activeTab = isset($_GET['tab']) ? $_GET['tab'] : 'users';
                     datasets: [{
                         label: '发布文章数',
                         data: postCounts,
-                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                        borderColor: 'rgba(255, 99, 132, 1)',
-                        borderWidth: 2
+                        backgroundColor: 'rgba(78, 205, 196, 0.8)',
+                        borderColor: 'rgba(78, 205, 196, 1)',
+                        borderWidth: 2,
+                        borderRadius: 8
                     }]
                 },
                 options: chartOptions

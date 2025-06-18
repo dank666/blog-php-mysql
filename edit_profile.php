@@ -168,191 +168,428 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>编辑个人资料 - 博客系统</title>
+    <title>编辑个人资料 - 智域博客</title>
     <link rel="stylesheet" href="styles/style.css">
+    <link rel="stylesheet" href="styles/navbar.css">
     <style>
+        /* 整体页面美化 - 与主界面保持一致 */
         body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
             margin: 0;
-            padding: 0;
-            background-color: #f5f5f5;
-        }
-        
-        .main-content {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        
-        .edit-profile-container {
-            max-width: 600px;
-            margin: 20px auto;
-            padding: 30px;
-            background-color: white;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            border-radius: 5px;
-        }
-        
-        .page-title {
-            text-align: center;
-            margin-bottom: 25px;
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
             color: #333;
         }
-        
-        .form-group {
-            margin-bottom: 20px;
+
+        /* 隐藏旧的top-bar */
+        .top-bar {
+            display: none;
         }
         
-        .form-label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #444;
+        /* 主布局美化 */
+        .main-content {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 30px 20px;
         }
         
-        .form-control {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 1em;
-            box-sizing: border-box;
+        /* 编辑个人资料容器美化 */
+        .edit-profile-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 25px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .edit-profile-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 6px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #4ecdc4, #f093fb);
         }
         
-        textarea.form-control {
-            min-height: 100px;
-            resize: vertical;
+        /* 页面标题美化 */
+        .page-title {
+            text-align: center;
+            margin: 0 0 40px 0;
+            color: #667eea;
+            font-size: 32px;
+            font-weight: 700;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
         }
-        
-        .form-hint {
-            font-size: 0.85em;
-            color: #777;
-            margin-top: 5px;
+
+        .page-title::before {
+            content: '✏️';
+            font-size: 36px;
+            background: none;
+            -webkit-background-clip: initial;
+            -webkit-text-fill-color: initial;
+            background-clip: initial;
         }
-        
+
+        /* 消息提示美化 */
+        .message {
+            padding: 15px 20px;
+            margin-bottom: 25px;
+            border-radius: 15px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: fadeInDown 0.5s ease-out;
+        }
+
+        .message-success {
+            background: rgba(78, 205, 196, 0.1);
+            color: #4ecdc4;
+            border: 1px solid rgba(78, 205, 196, 0.3);
+        }
+
+        .message-success::before {
+            content: '✅';
+            font-size: 18px;
+        }
+
+        .message-error {
+            background: rgba(255, 107, 107, 0.1);
+            color: #ff6b6b;
+            border: 1px solid rgba(255, 107, 107, 0.3);
+        }
+
+        .message-error::before {
+            content: '⚠️';
+            font-size: 18px;
+        }
+
+        /* 当前头像区域美化 */
         .current-avatar {
             text-align: center;
-            margin-bottom: 15px;
+            margin-bottom: 30px;
+            padding: 25px;
+            background: rgba(102, 126, 234, 0.05);
+            border-radius: 20px;
+            border: 2px dashed rgba(102, 126, 234, 0.2);
         }
-        
+
         .avatar-preview {
-            width: 100px;
-            height: 100px;
+            width: 120px;
+            height: 120px;
             border-radius: 50%;
             object-fit: cover;
-            border: 3px solid #f0f0f0;
+            border: 4px solid rgba(102, 126, 234, 0.2);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s ease;
+            margin-bottom: 15px;
         }
-        
+
+        .avatar-preview:hover {
+            transform: scale(1.05);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.3);
+        }
+
         .avatar-label {
             display: block;
-            margin-top: 8px;
-            color: #666;
+            color: #667eea;
+            font-weight: 600;
+            font-size: 16px;
         }
-        
-        .section-title {
-            margin: 30px 0 15px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #eee;
+
+        /* 表单组美化 */
+        .form-group {
+            margin-bottom: 25px;
+            position: relative;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
             color: #444;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-        
+
+        .form-label::before {
+            font-size: 16px;
+        }
+
+        .form-label[for="avatar"]::before { content: '🖼️'; }
+        .form-label[for="username"]::before { content: '👤'; }
+        .form-label[for="bio"]::before { content: '📝'; }
+        .form-label[for="current_password"]::before { content: '🔒'; }
+        .form-label[for="new_password"]::before { content: '🔑'; }
+        .form-label[for="confirm_password"]::before { content: '✅'; }
+
+        .form-control {
+            width: 100%;
+            padding: 15px 20px;
+            border: 2px solid rgba(102, 126, 234, 0.2);
+            border-radius: 15px;
+            font-size: 15px;
+            box-sizing: border-box;
+            background: rgba(255, 255, 255, 0.9);
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            background: white;
+        }
+
+        textarea.form-control {
+            min-height: 120px;
+            resize: vertical;
+            line-height: 1.6;
+        }
+
+        /* 表单提示美化 */
+        .form-hint {
+            font-size: 13px;
+            color: #666;
+            margin-top: 8px;
+            padding: 8px 15px;
+            background: rgba(102, 126, 234, 0.05);
+            border-radius: 10px;
+            border-left: 3px solid rgba(102, 126, 234, 0.3);
+        }
+
+        /* 区域标题美化 */
+        .section-title {
+            margin: 40px 0 20px;
+            padding: 15px 0;
+            border-bottom: 2px solid rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            font-size: 22px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::before {
+            content: '🔐';
+            font-size: 24px;
+        }
+
+        /* 密码区域提示美化 */
+        .password-section-hint {
+            margin-bottom: 20px;
+            padding: 15px 20px;
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid rgba(255, 193, 7, 0.3);
+            border-radius: 15px;
+            color: #856404;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .password-section-hint::before {
+            content: '💡';
+            font-size: 18px;
+        }
+
+        /* 按钮美化 */
         .btn {
-            display: inline-block;
-            padding: 10px 20px;
-            background-color: #007bff;
-            color: white;
-            text-decoration: none;
-            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 15px 30px;
+            border-radius: 25px;
             border: none;
             cursor: pointer;
-            font-size: 1em;
-            transition: background-color 0.2s;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            font-family: inherit;
+            min-width: 120px;
         }
-        
-        .btn:hover {
-            background-color: #0056b3;
+
+        .btn[type="submit"] {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
         }
-        
+
+        .btn[type="submit"]:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
         .btn-secondary {
-            background-color: #6c757d;
-            margin-left: 10px;
+            background: linear-gradient(45deg, #6c757d, #5a6268);
+            color: white;
+            box-shadow: 0 5px 15px rgba(108, 117, 125, 0.3);
         }
-        
+
         .btn-secondary:hover {
-            background-color: #5a6268;
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(108, 117, 125, 0.4);
+            color: white;
         }
-        
+
+        /* 表单操作区域美化 */
         .form-actions {
             text-align: center;
-            margin-top: 30px;
-        }
-        
-        .message {
-            padding: 10px 15px;
-            margin-bottom: 20px;
-            border-radius: 4px;
-        }
-        
-        .message-success {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        
-        .message-error {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        
-        .top-bar {
-            background-color: #333;
-            color: white;
-            padding: 10px 20px;
+            margin-top: 40px;
+            padding: 25px 0;
+            border-top: 2px solid rgba(102, 126, 234, 0.1);
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
         }
-        
-        #topBarTitle {
-            font-size: 20px;
-            font-weight: bold;
+
+        /* 文件上传美化 */
+        input[type="file"].form-control {
+            padding: 12px 15px;
+            background: rgba(102, 126, 234, 0.05);
+            border: 2px dashed rgba(102, 126, 234, 0.3);
+            cursor: pointer;
         }
-        
-        .top-bar-right a {
-            color: #007bff;
-            text-decoration: none;
-            margin-left: 15px;
-            transition: color 0.2s;
+
+        input[type="file"].form-control:hover {
+            background: rgba(102, 126, 234, 0.1);
+            border-color: #667eea;
         }
-        
-        .top-bar-right a:hover {
-            color: #0056b3;
-            text-decoration: underline;
+
+        input[type="file"].form-control:focus {
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .main-content {
+                padding: 20px 15px;
+            }
+
+            .edit-profile-container {
+                padding: 25px;
+            }
+
+            .page-title {
+                font-size: 26px;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .avatar-preview {
+                width: 100px;
+                height: 100px;
+            }
+
+            .form-control {
+                padding: 12px 15px;
+            }
+
+            .form-actions {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .btn {
+                width: 100%;
+                max-width: 250px;
+            }
+
+            .section-title {
+                font-size: 20px;
+            }
+        }
+
+        /* 毛玻璃效果增强 */
+        @supports (backdrop-filter: blur(10px)) {
+            .edit-profile-container {
+                backdrop-filter: blur(15px);
+                background: rgba(255, 255, 255, 0.8);
+            }
+        }
+
+        /* 加载动画 */
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .edit-profile-container {
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        /* 表单验证样式 */
+        .form-control.error {
+            border-color: #ff6b6b;
+            box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.1);
+        }
+
+        .form-control.success {
+            border-color: #4ecdc4;
+            box-shadow: 0 0 0 3px rgba(78, 205, 196, 0.1);
+        }
+
+        /* 加载状态按钮 */
+        .btn.loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        .btn.loading::after {
+            content: '';
+            width: 16px;
+            height: 16px;
+            border: 2px solid transparent;
+            border-top: 2px solid currentColor;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 8px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
-    <div class="top-bar">
-        <span id="topBarTitle">智域博客</span>
-        <div class="top-bar-right">
-            <a href="index.php">首页</a>
-            <?php if (isLoggedIn()): ?>
-                <a href="profile.php">我的资料</a>
-                <a href="following.php">我的关注</a>
-                <a href="followers.php">我的粉丝</a>
-                <?php if (isAdmin()): ?>
-                    <a href="admin.php">管理面板</a>
-                <?php endif; ?>
-                <a href="settings.php">设置</a>
-                <a href="logout.php">退出</a>
-            <?php else: ?>
-                <a href="login.php">登录</a>
-                <a href="register.php">注册</a>
-            <?php endif; ?>
-        </div>
-    </div>
+    <?php include 'includes/navbar.php'; ?>
     
     <div class="main-content">
         <div class="edit-profile-container">
@@ -364,54 +601,203 @@ $conn->close();
                 </div>
             <?php endif; ?>
             
-            <form action="edit_profile.php" method="post" enctype="multipart/form-data">
+            <form action="edit_profile.php" method="post" enctype="multipart/form-data" id="editProfileForm">
                 <div class="current-avatar">
-                    <img src="avatars/<?php echo htmlspecialchars($user['avatar'] ?? 'default.jpg'); ?>" alt="当前头像" class="avatar-preview">
+                    <img src="avatars/<?php echo htmlspecialchars($user['avatar'] ?? 'default.jpg'); ?>" alt="当前头像" class="avatar-preview" id="avatarPreview">
                     <span class="avatar-label">当前头像</span>
                 </div>
                 
                 <div class="form-group">
                     <label for="avatar" class="form-label">更换头像</label>
-                    <input type="file" id="avatar" name="avatar" class="form-control">
-                    <div class="form-hint">支持JPG、PNG、GIF格式，文件大小不超过2MB</div>
+                    <input type="file" id="avatar" name="avatar" class="form-control" accept="image/*">
+                    <div class="form-hint">📸 支持JPG、PNG、GIF格式，文件大小不超过2MB</div>
                 </div>
                 
                 <div class="form-group">
                     <label for="username" class="form-label">用户名</label>
                     <input type="text" id="username" name="username" class="form-control" value="<?php echo htmlspecialchars($user['username']); ?>" required>
+                    <div class="form-hint">🔤 用户名将在您的文章和评论中显示</div>
                 </div>
                 
                 <div class="form-group">
                     <label for="bio" class="form-label">个人简介</label>
-                    <textarea id="bio" name="bio" class="form-control"><?php echo htmlspecialchars($user['bio'] ?? ''); ?></textarea>
-                    <div class="form-hint">简单介绍一下自己吧</div>
+                    <textarea id="bio" name="bio" class="form-control" placeholder="简单介绍一下自己吧..."><?php echo htmlspecialchars($user['bio'] ?? ''); ?></textarea>
+                    <div class="form-hint">📖 让其他用户更好地了解您</div>
                 </div>
                 
                 <h3 class="section-title">修改密码</h3>
-                <div class="form-hint">如果不需要修改密码，请保留以下字段为空</div>
+                <div class="password-section-hint">
+                    如果不需要修改密码，请保留以下字段为空
+                </div>
                 
                 <div class="form-group">
                     <label for="current_password" class="form-label">当前密码</label>
-                    <input type="password" id="current_password" name="current_password" class="form-control">
+                    <input type="password" id="current_password" name="current_password" class="form-control" placeholder="请输入当前密码">
+                    <div class="form-hint">🔐 为了安全起见，修改密码需要验证当前密码</div>
                 </div>
                 
                 <div class="form-group">
                     <label for="new_password" class="form-label">新密码</label>
-                    <input type="password" id="new_password" name="new_password" class="form-control">
-                    <div class="form-hint">密码长度不少于6个字符</div>
+                    <input type="password" id="new_password" name="new_password" class="form-control" placeholder="请输入新密码">
+                    <div class="form-hint">🔑 密码长度不少于6个字符，建议包含字母和数字</div>
                 </div>
                 
                 <div class="form-group">
                     <label for="confirm_password" class="form-label">确认新密码</label>
-                    <input type="password" id="confirm_password" name="confirm_password" class="form-control">
+                    <input type="password" id="confirm_password" name="confirm_password" class="form-control" placeholder="请再次输入新密码">
+                    <div class="form-hint">✅ 请确保两次输入的密码一致</div>
                 </div>
                 
                 <div class="form-actions">
-                    <button type="submit" class="btn">保存更改</button>
-                    <a href="profile.php" class="btn btn-secondary">取消</a>
+                    <button type="submit" class="btn" id="submitBtn">💾 保存更改</button>
+                    <a href="profile.php" class="btn btn-secondary">❌ 取消</a>
                 </div>
             </form>
         </div>
     </div>
+
+    <script>
+    // 头像预览功能
+    document.getElementById('avatar').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            // 检查文件类型
+            const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+            if (!allowedTypes.includes(file.type)) {
+                alert('请选择JPG、PNG或GIF格式的图片');
+                this.value = '';
+                return;
+            }
+            
+            // 检查文件大小 (2MB)
+            if (file.size > 2 * 1024 * 1024) {
+                alert('图片大小不能超过2MB');
+                this.value = '';
+                return;
+            }
+            
+            // 预览图片
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('avatarPreview').src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    // 密码强度检测
+    document.getElementById('new_password').addEventListener('input', function() {
+        const password = this.value;
+        const strengthIndicator = this.nextElementSibling;
+        
+        if (password.length === 0) {
+            this.classList.remove('error', 'success');
+            return;
+        }
+        
+        if (password.length < 6) {
+            this.classList.add('error');
+            this.classList.remove('success');
+        } else {
+            this.classList.remove('error');
+            this.classList.add('success');
+        }
+    });
+
+    // 密码确认验证
+    document.getElementById('confirm_password').addEventListener('input', function() {
+        const newPassword = document.getElementById('new_password').value;
+        const confirmPassword = this.value;
+        
+        if (confirmPassword.length === 0) {
+            this.classList.remove('error', 'success');
+            return;
+        }
+        
+        if (newPassword !== confirmPassword) {
+            this.classList.add('error');
+            this.classList.remove('success');
+        } else {
+            this.classList.remove('error');
+            this.classList.add('success');
+        }
+    });
+
+    // 表单提交处理
+    document.getElementById('editProfileForm').addEventListener('submit', function(e) {
+        const submitBtn = document.getElementById('submitBtn');
+        const newPassword = document.getElementById('new_password').value;
+        const confirmPassword = document.getElementById('confirm_password').value;
+        const currentPassword = document.getElementById('current_password').value;
+        
+        // 如果要修改密码，验证密码字段
+        if (newPassword || confirmPassword || currentPassword) {
+            if (!currentPassword) {
+                alert('修改密码需要输入当前密码');
+                e.preventDefault();
+                return;
+            }
+            
+            if (!newPassword) {
+                alert('请输入新密码');
+                e.preventDefault();
+                return;
+            }
+            
+            if (newPassword !== confirmPassword) {
+                alert('两次输入的新密码不一致');
+                e.preventDefault();
+                return;
+            }
+            
+            if (newPassword.length < 6) {
+                alert('新密码长度不能少于6个字符');
+                e.preventDefault();
+                return;
+            }
+        }
+        
+        // 显示加载状态
+        submitBtn.classList.add('loading');
+        submitBtn.textContent = '保存中...';
+        submitBtn.disabled = true;
+    });
+
+    // 用户名实时验证
+    document.getElementById('username').addEventListener('blur', function() {
+        const username = this.value.trim();
+        if (username.length === 0) {
+            this.classList.add('error');
+            this.classList.remove('success');
+        } else if (username.length < 2) {
+            this.classList.add('error');
+            this.classList.remove('success');
+        } else {
+            this.classList.remove('error');
+            this.classList.add('success');
+        }
+    });
+
+    // 页面加载完成后的动画效果
+    document.addEventListener('DOMContentLoaded', function() {
+        // 为表单组添加渐入动画
+        const formGroups = document.querySelectorAll('.form-group, .section-title, .password-section-hint');
+        formGroups.forEach((group, index) => {
+            group.style.opacity = '0';
+            group.style.transform = 'translateY(20px)';
+            group.style.animation = `fadeInUp 0.6s ease-out ${index * 0.1}s forwards`;
+        });
+    });
+
+    // 防止表单重复提交
+    let isSubmitting = false;
+    document.getElementById('editProfileForm').addEventListener('submit', function(e) {
+        if (isSubmitting) {
+            e.preventDefault();
+            return;
+        }
+        isSubmitting = true;
+    });
+    </script>
 </body>
 </html>

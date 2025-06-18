@@ -1,79 +1,118 @@
 <?php
-$config = include 'config.php';
+session_start();
 include 'includes/auth.php';
+include 'includes/database.php';
 
-// 连接数据库
-$conn = new mysqli(
-    $config['db']['host'],
-    $config['db']['username'],
-    $config['db']['password'],
-    $config['db']['database']
-);
+$config = include 'config.php';
+$conn = getDbConnection($config);
 
 if ($conn->connect_error) {
     die("数据库连接失败: " . $conn->connect_error);
 }
 
-// 获取当前登录用户
-$currentUserId = isLoggedIn() ? getCurrentUserId() : 0;
+// 获取用户ID
+$user_id = isset($_GET['id']) ? (int)$_GET['id'] : (isLoggedIn() ? getCurrentUserId() : 0);
 
-// 获取要查看的用户ID，如果没有指定则显示当前登录用户
-$user_id = isset($_GET['id']) ? (int)$_GET['id'] : $currentUserId;
-
-// 如果未登录且未指定用户ID，则重定向到登录页面
-if ($user_id === 0) {
-    header('Location: login.php');
-    exit;
+if ($user_id <= 0) {
+    header("Location: login.php");
+    exit();
 }
 
-// 查询用户信息
+// 获取用户信息
 $stmt = $conn->prepare("SELECT * FROM users WHERE id = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
-$result = $stmt->get_result();
+$user = $stmt->get_result()->fetch_assoc();
+$stmt->close();
 
-// 如果用户不存在，则显示错误信息
-if ($result->num_rows === 0) {
-    $error = "用户不存在";
-} else {
-    $user = $result->fetch_assoc();
-    
-    // 统计该用户发布的文章数
-    $posts_stmt = $conn->prepare("SELECT COUNT(*) as post_count FROM blog_table WHERE user_id = ?");
-    $posts_stmt->bind_param("i", $user_id);
-    $posts_stmt->execute();
-    $posts_result = $posts_stmt->get_result();
-    $post_count = $posts_result->fetch_assoc()['post_count'];
-    $posts_stmt->close();
-    
-    // 统计关注数（该用户关注了多少人）
-    $following_stmt = $conn->prepare("SELECT COUNT(*) as count FROM followers WHERE follower_id = ?");
-    $following_stmt->bind_param("i", $user_id);
-    $following_stmt->execute();
-    $following_result = $following_stmt->get_result();
-    $following_count = $following_result->fetch_assoc()['count'];
-    $following_stmt->close();
-    
-    // 统计粉丝数（有多少人关注该用户）
-    $followers_stmt = $conn->prepare("SELECT COUNT(*) as count FROM followers WHERE following_id = ?");
-    $followers_stmt->bind_param("i", $user_id);
-    $followers_stmt->execute();
-    $followers_result = $followers_stmt->get_result();
-    $followers_count = $followers_result->fetch_assoc()['count'];
-    $followers_stmt->close();
-    
-    // 检查当前用户是否已关注该用户
-    $is_following = false;
-    if ($currentUserId > 0 && $currentUserId != $user_id) {
-        $check_follow_stmt = $conn->prepare("SELECT id FROM followers WHERE follower_id = ? AND following_id = ?");
-        $check_follow_stmt->bind_param("ii", $currentUserId, $user_id);
-        $check_follow_stmt->execute();
-        $is_following = $check_follow_stmt->get_result()->num_rows > 0;
-        $check_follow_stmt->close();
-    }
+if (!$user) {
+    die("用户不存在");
 }
 
+// 检查是否是当前用户的个人资料
+$is_own_profile = isLoggedIn() && getCurrentUserId() == $user_id;
+
+// 获取用户文章数量
+$stmt = $conn->prepare("SELECT COUNT(*) as count FROM blog_table WHERE user_id = ?");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$post_count = $stmt->get_result()->fetch_assoc()['count'];
 $stmt->close();
+
+// 获取用户文章的总浏览量
+$stmt = $conn->prepare("
+    SELECT COUNT(v.id) as total_views 
+    FROM blog_views v 
+    JOIN blog_table b ON v.post_id = b.id 
+    WHERE b.user_id = ?
+");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$total_views = $stmt->get_result()->fetch_assoc()['total_views'];
+$stmt->close();
+
+// 获取用户文章的总点赞数
+$stmt = $conn->prepare("
+    SELECT COUNT(l.id) as total_likes 
+    FROM likes l 
+    JOIN blog_table b ON l.post_id = b.id 
+    WHERE b.user_id = ?
+");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$total_likes = $stmt->get_result()->fetch_assoc()['total_likes'];
+$stmt->close();
+
+// 获取粉丝数量
+$stmt = $conn->prepare("SELECT COUNT(*) as count FROM followers WHERE following_id = ?");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$followers_count = $stmt->get_result()->fetch_assoc()['count'];
+$stmt->close();
+
+// 获取关注数量
+$stmt = $conn->prepare("SELECT COUNT(*) as count FROM followers WHERE follower_id = ?");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$following_count = $stmt->get_result()->fetch_assoc()['count'];
+$stmt->close();
+
+// 检查当前用户是否关注了这个用户
+$is_following = false;
+if (isLoggedIn() && !$is_own_profile) {
+    $current_user_id = getCurrentUserId();
+    $stmt = $conn->prepare("SELECT id FROM followers WHERE follower_id = ? AND following_id = ?");
+    $stmt->bind_param("ii", $current_user_id, $user_id);
+    $stmt->execute();
+    $is_following = $stmt->get_result()->num_rows > 0;
+    $stmt->close();
+}
+
+// 分页设置
+$posts_per_page = 12;
+$current_page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+if ($current_page < 1) $current_page = 1;
+
+$offset = ($current_page - 1) * $posts_per_page;
+
+// 获取用户的文章（分页）
+$stmt = $conn->prepare("
+    SELECT b.*, 
+           (SELECT COUNT(*) FROM likes l WHERE l.post_id = b.id) as likes_count,
+           (SELECT COUNT(*) FROM blog_views v WHERE v.post_id = b.id) as views_count
+    FROM blog_table b 
+    WHERE b.user_id = ? 
+    ORDER BY b.id DESC 
+    LIMIT ? OFFSET ?
+");
+$stmt->bind_param("iii", $user_id, $posts_per_page, $offset);
+$stmt->execute();
+$posts = $stmt->get_result();
+$stmt->close();
+
+// 计算总页数
+$total_pages = ceil($post_count / $posts_per_page);
+
 $conn->close();
 ?>
 
@@ -82,476 +121,788 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo isset($error) ? "错误" : htmlspecialchars($user['username']) . " 的个人资料"; ?> - 博客系统</title>
+    <title><?php echo htmlspecialchars($user['username']); ?> 的个人资料 - 智域博客</title>
     <link rel="stylesheet" href="styles/style.css">
+    <link rel="stylesheet" href="styles/navbar.css">
     <style>
+        /* 整体页面美化 - 与主界面保持一致 */
         body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
             margin: 0;
-            padding: 0;
-            background-color: #f5f5f5;
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            color: #333;
         }
-        
-        .main-content {
+
+        /* 隐藏旧的top-bar */
+        .top-bar {
+            display: none;
+        }
+
+        /* 个人资料容器美化 */
+        .profile-container {
             max-width: 1200px;
             margin: 0 auto;
-            padding: 20px;
+            padding: 30px 20px;
         }
-        
-        .profile-container {
-            max-width: 800px;
-            margin: 20px auto;
-            padding: 30px;
-            background-color: white;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            border-radius: 5px;
-            text-align: center;
-        }
-        
+
+        /* 个人资料头部美化 */
         .profile-header {
-            margin-bottom: 25px;
-            text-align: center;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 25px;
+            padding: 40px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
         }
-        
+
+        .profile-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 6px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #4ecdc4, #f093fb);
+        }
+
+        .profile-info {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        /* 头像美化 */
         .profile-avatar {
+            position: relative;
+        }
+
+        .profile-avatar img {
             width: 120px;
             height: 120px;
             border-radius: 50%;
-            margin: 0 auto 15px;
-            border: 3px solid #f0f0f0;
-            object-fit: cover;
+            border: 4px solid rgba(102, 126, 234, 0.2);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s ease;
         }
-        
+
+        .profile-avatar:hover img {
+            transform: scale(1.05);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.3);
+        }
+
+        /* 用户信息美化 */
+        .profile-details {
+            flex: 1;
+        }
+
         .profile-username {
-            font-size: 24px;
-            margin: 10px 0;
-            color: #333;
-        }
-        
-        .profile-bio {
-            color: #666;
-            margin-bottom: 20px;
-            font-style: italic;
-        }
-        
-        .profile-stats {
+            margin: 0 0 10px 0;
+            font-size: 32px;
+            font-weight: 700;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
             display: flex;
-            justify-content: center;
-            margin: 20px 0;
-            gap: 20px;
-            flex-wrap: wrap;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap; /* 允许换行 */
         }
-        
-        .stat-item {
-            padding: 15px;
-            border-radius: 5px;
-            background-color: #f9f9f9;
-            min-width: 100px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+
+        .profile-role {
+            display: inline-flex; /* 改为 inline-flex */
+            align-items: center; /* 垂直居中对齐 */
+            padding: 8px 16px; /* 增加内边距 */
+            border-radius: 20px;
+            font-size: 13px; /* 稍微增大字体 */
+            font-weight: 600;
+            margin-left: 0; /* 移除左边距，因为父容器已有gap */
+            /* 重置渐变文字效果 */
+            background-clip: initial !important;
+            -webkit-background-clip: initial !important;
+            -webkit-text-fill-color: initial !important;
+            white-space: nowrap; /* 防止文字换行 */
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s ease;
         }
-        
-        .stat-value {
-            font-size: 22px;
-            font-weight: bold;
-            color: #007bff;
+
+        .profile-role:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
         }
-        
-        .stat-label {
-            font-size: 14px;
+
+        .profile-role.admin {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            color: white !important;
+        }
+
+        .profile-role.user {
+            background: linear-gradient(45deg, #4ecdc4, #44a08d);
+            color: white !important;
+        }
+
+        .profile-email {
             color: #666;
-            margin-top: 5px;
+            font-size: 16px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-        
+
+        .profile-join-date {
+            color: #999;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* 统计卡片美化 */
+        .profile-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 20px;
+            padding: 25px 20px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #4ecdc4);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        /* 操作按钮区域美化 */
         .profile-actions {
-            margin-top: 25px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
         }
-        
-        .btn {
-            display: inline-block;
-            padding: 8px 16px;
-            background-color: #007bff;
-            color: white;
-            text-decoration: none;
-            border-radius: 4px;
+
+        .follow-btn {
+            padding: 12px 25px;
+            border-radius: 25px;
             border: none;
             cursor: pointer;
-            margin: 5px;
-            transition: background-color 0.2s;
-        }
-        
-        .btn:hover {
-            background-color: #0056b3;
-        }
-        
-        .btn-outline {
-            background-color: transparent;
-            border: 1px solid #007bff;
-            color: #007bff;
-        }
-        
-        .btn-outline:hover {
-            background-color: #f0f8ff;
-        }
-        
-        .error-message {
-            color: #d9534f;
-            text-align: center;
-            margin: 40px 0;
-            padding: 20px;
-            background-color: #f9f2f2;
-            border-radius: 5px;
-        }
-        
-        .profile-posts {
-            margin-top: 30px;
-            text-align: center;
-        }
-
-        .profile-posts h2 {
-            margin-bottom: 20px;
-            font-size: 22px;
-            color: #333;
-            text-align: center;
-        }
-
-        .posts-grid {
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s ease;
             display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            justify-content: center;
-            margin-bottom: 20px;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
         }
 
-        .post-card {
-            width: calc(33.333% - 14px);
-            background-color: #fff;
-            border-radius: 8px;
+        .follow-btn.following {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .follow-btn.not-following {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .follow-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .edit-profile-btn {
+            background: linear-gradient(45deg, #4ecdc4, #44a08d);
+            color: white;
+            padding: 12px 25px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 5px 15px rgba(78, 205, 196, 0.3);
+        }
+
+        .edit-profile-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(78, 205, 196, 0.4);
+            color: white;
+        }
+
+        /* 文章列表区域美化 */
+        .posts-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
             overflow: hidden;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            transition: transform 0.2s, box-shadow 0.2s;
-            margin-bottom: 5px;
         }
 
-        @media (max-width: 768px) {
-            .post-card {
-                width: calc(50% - 10px);
-            }
+        .posts-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #4ecdc4);
         }
 
-        @media (max-width: 480px) {
-            .post-card {
-                width: 100%;
-            }
+        .posts-section h3 {
+            margin-top: 0;
+            margin-bottom: 25px;
+            color: #667eea;
+            font-size: 24px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .posts-section h3::before {
+            content: '📝';
+            font-size: 28px;
+        }
+
+        /* 文章网格布局 */
+        .posts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        /* 文章卡片美化 */
+        .post-card {
+            background: rgba(248, 249, 250, 0.9);
+            border-radius: 15px;
+            padding: 25px;
+            border: 1px solid rgba(102, 126, 234, 0.1);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .post-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            opacity: 0;
+            transition: opacity 0.3s ease;
         }
 
         .post-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+            background: white;
         }
 
-        .post-card-link {
-            display: block;
-            text-decoration: none;
-            color: inherit;
-            height: 100%;
-        }
-
-        .post-card-image {
-            height: 160px;
-            overflow: hidden;
-            background-color: #f0f0f0;
-        }
-
-        .post-card-image img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transition: transform 0.3s;
-        }
-
-        .post-card:hover .post-card-image img {
-            transform: scale(1.05);
-        }
-
-        .post-card-no-image {
-            background-color: #f0f0f0;
-            position: relative;
-        }
-
-        .post-card-no-image::after {
-            content: "无图片";
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: #999;
-            font-size: 14px;
-        }
-
-        .post-card-content {
-            padding: 15px;
-            text-align: left;
+        .post-card:hover::before {
+            opacity: 1;
         }
 
         .post-card-title {
-            margin: 0 0 10px;
-            font-size: 16px;
+            margin: 0 0 15px 0;
+            font-size: 18px;
             font-weight: 600;
-            color: #333;
-            line-height: 1.3;
-            /* 文本溢出显示省略号 */
+            line-height: 1.4;
+        }
+
+        .post-card-title a {
+            color: #667eea;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .post-card-title a:hover {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .post-card-excerpt {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 15px;
             display: -webkit-box;
-            -webkit-line-clamp: 2;
+            -webkit-line-clamp: 3;
             -webkit-box-orient: vertical;
             overflow: hidden;
-            text-overflow: ellipsis;
-            height: 42px;
         }
 
-        .post-card-date {
-            color: #888;
-            font-size: 12px;
-        }
-
-        .view-all-posts {
-            margin-top: 20px;
-            text-align: center;
-        }
-
-        .view-all-posts a {
-            display: inline-block;
-            padding: 8px 20px;
-            background-color: #f8f9fa;
-            color: #007bff;
-            text-decoration: none;
-            border-radius: 4px;
-            border: 1px solid #dee2e6;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-
-        .view-all-posts a:hover {
-            background-color: #e9ecef;
-            color: #0056b3;
-        }
-
-        .no-posts {
-            grid-column: 1 / -1;
-            text-align: center;
-            color: #888;
-            padding: 30px 0;
-            font-style: italic;
-            background-color: #f9f9f9;
-            border-radius: 5px;
-            width: 100%;
-        }
-
-        .follow-btn {
-            padding: 8px 16px;
-            border-radius: 20px;
-            border: 1px solid #007bff;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.2s;
-            outline: none;
-        }
-        
-        .follow-btn.following {
-            background-color: #007bff;
-            color: white;
-        }
-        
-        .follow-btn.not-following {
-            background-color: white;
-            color: #007bff;
-        }
-        
-        .stat-item a {
-            text-decoration: none;
-            color: inherit;
-            display: block;
-            width: 100%;
-            height: 100%;
-        }
-        
-        .stat-item:hover {
-            background-color: #f0f0f0;
-        }
-        
-        .top-bar {
-            background-color: #333;
-            color: white;
-            padding: 10px 20px;
+        .post-card-meta {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 15px;
         }
-        
-        #topBarTitle {
-            font-size: 20px;
-            font-weight: bold;
+
+        .post-card-stats {
+            display: flex;
+            gap: 15px;
+            font-size: 13px;
+            color: #666;
         }
-        
-        .top-bar-right a {
-            color: #007bff;
+
+        .post-card-stat {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .post-card-image {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            transition: transform 0.3s ease;
+        }
+
+        .post-card:hover .post-card-image {
+            transform: scale(1.03);
+        }
+
+        /* 分页美化 */
+        .pagination {
+            margin-top: 40px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .pagination a, .pagination .current-page {
+            padding: 12px 18px;
+            border-radius: 25px;
             text-decoration: none;
-            margin-left: 15px;
-            transition: color 0.2s;
+            border: none;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            min-width: 45px;
+            text-align: center;
         }
-        
-        .top-bar-right a:hover {
-            color: #0056b3;
-            text-decoration: underline;
+
+        .pagination a {
+            color: #667eea;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .pagination a:hover {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .pagination .current-page {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        /* 空状态美化 */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .empty-state-text {
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+
+        /* 关注者/关注中列表美化 */
+        .follow-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .follow-item {
+            background: rgba(248, 249, 250, 0.9);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid rgba(102, 126, 234, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .follow-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            background: white;
+        }
+
+        .follow-item img {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            margin-bottom: 10px;
+            border: 2px solid rgba(102, 126, 234, 0.2);
+        }
+
+        .follow-item-name {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .follow-item-stats {
+            font-size: 12px;
+            color: #999;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .profile-container {
+                padding: 20px 15px;
+            }
+
+            .profile-header {
+                padding: 25px;
+            }
+
+            .profile-info {
+                flex-direction: column;
+                text-align: center;
+                gap: 20px;
+            }
+
+            .profile-avatar img {
+                width: 100px;
+                height: 100px;
+            }
+
+            .profile-username {
+                font-size: 24px;
+                justify-content: center;
+            }
+
+            .profile-stats {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 15px;
+            }
+
+            .stat-card {
+                padding: 20px 15px;
+            }
+
+            .posts-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .post-card {
+                padding: 20px;
+            }
+
+            .pagination {
+                gap: 5px;
+            }
+
+            .pagination a, .pagination .current-page {
+                padding: 10px 14px;
+                font-size: 14px;
+            }
+
+            .profile-actions {
+                justify-content: center;
+                width: 100%;
+            }
+        }
+
+        /* 毛玻璃效果增强 */
+        @supports (backdrop-filter: blur(10px)) {
+            .profile-header,
+            .posts-section,
+            .stat-card {
+                backdrop-filter: blur(15px);
+                background: rgba(255, 255, 255, 0.8);
+            }
+        }
+
+        /* 加载动画 */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .profile-header,
+        .posts-section,
+        .stat-card {
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .stat-card:nth-child(1) { animation-delay: 0.1s; }
+        .stat-card:nth-child(2) { animation-delay: 0.2s; }
+        .stat-card:nth-child(3) { animation-delay: 0.3s; }
+        .stat-card:nth-child(4) { animation-delay: 0.4s; }
+        .stat-card:nth-child(5) { animation-delay: 0.5s; }
+
+        /* 成功消息样式 */
+        .success-message {
+            background: rgba(78, 205, 196, 0.1);
+            border: 1px solid rgba(78, 205, 196, 0.3);
+            color: #4ecdc4;
+            padding: 15px 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .success-message::before {
+            content: '✅';
+            font-size: 18px;
         }
     </style>
 </head>
 <body>
-    <div class="top-bar">
-        <span id="topBarTitle">智域博客</span>
-        <div class="top-bar-right">
-            <a href="index.php">首页</a>
-            <?php if (isLoggedIn()): ?>
-                <a href="profile.php">我的资料</a>
-                <a href="following.php">我的关注</a>
-                <a href="followers.php">我的粉丝</a>
-                <?php if (isAdmin()): ?>
-                    <a href="admin.php">管理面板</a>
+    <?php include 'includes/navbar.php'; ?>
+    
+    <div class="profile-container">
+        <!-- 个人资料头部 -->
+        <div class="profile-header">
+            <div class="profile-info">
+                <div class="profile-avatar">
+                    <img src="avatars/<?php echo htmlspecialchars($user['avatar'] ?? 'default.jpg'); ?>" 
+                         alt="<?php echo htmlspecialchars($user['username']); ?>的头像">
+                </div>
+                
+                <div class="profile-details">
+                    <h1 class="profile-username">
+                        <?php echo htmlspecialchars($user['username']); ?>
+                        <span class="profile-role <?php echo $user['role']; ?>">
+                            <?php echo $user['role'] === 'admin' ? '👑 管理员' : '👤 用户'; ?>
+                        </span>
+                    </h1>
+                    
+                    <div class="profile-email">
+                        📧 <?php echo htmlspecialchars($user['email']); ?>
+                    </div>
+                    
+                    <div class="profile-join-date">
+                        📅 加入于 <?php echo date('Y年m月d日', strtotime($user['created_at'])); ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 统计信息 -->
+            <div class="profile-stats">
+                <div class="stat-card">
+                    <div class="stat-value"><?php echo $post_count; ?></div>
+                    <div class="stat-label">📝 发布文章</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value"><?php echo $total_views; ?></div>
+                    <div class="stat-label">👁️ 总浏览量</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value"><?php echo $total_likes; ?></div>
+                    <div class="stat-label">❤️ 获得点赞</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value"><?php echo $followers_count; ?></div>
+                    <div class="stat-label">👥 粉丝数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value"><?php echo $following_count; ?></div>
+                    <div class="stat-label">➕ 关注数</div>
+                </div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="profile-actions">
+                <?php if ($is_own_profile): ?>
+                    <a href="edit_profile.php" class="edit-profile-btn">
+                        ✏️ 编辑资料
+                    </a>
+                <?php elseif (isLoggedIn()): ?>
+                    <button id="followBtn" class="follow-btn <?php echo $is_following ? 'following' : 'not-following'; ?>" 
+                            data-userid="<?php echo $user_id; ?>">
+                        <?php if ($is_following): ?>
+                            ✅ 已关注
+                        <?php else: ?>
+                            ➕ 关注
+                        <?php endif; ?>
+                    </button>
                 <?php endif; ?>
-                <a href="settings.php">设置</a>
-                <a href="logout.php">退出</a>
+            </div>
+        </div>
+
+        <!-- 文章列表 -->
+        <div class="posts-section">
+            <h3>Ta 的文章</h3>
+            
+            <?php if ($posts->num_rows > 0): ?>
+                <div class="posts-grid">
+                    <?php while ($post = $posts->fetch_assoc()): ?>
+                        <div class="post-card">
+                            <?php if (!empty($post['image_filename']) && $post['image_filename'] !== 'NONE'): ?>
+                                <img src="images/<?php echo htmlspecialchars($post['image_filename']); ?>" 
+                                     alt="文章图片" class="post-card-image">
+                            <?php endif; ?>
+                            
+                            <h4 class="post-card-title">
+                                <a href="post.php?id=<?php echo $post['id']; ?>">
+                                    <?php echo htmlspecialchars($post['topic_title']); ?>
+                                </a>
+                            </h4>
+                            
+                            <div class="post-card-meta">
+                                <span>📅 <?php echo date('Y-m-d', strtotime($post['topic_date'])); ?></span>
+                                <?php if (!empty($post['location'])): ?>
+                                    <span>📍 <?php echo htmlspecialchars($post['location']); ?></span>
+                                <?php endif; ?>
+                            </div>
+                            
+                            <div class="post-card-excerpt">
+                                <?php 
+                                $excerpt = mb_substr($post['topic_para'], 0, 120, 'UTF-8');
+                                if (mb_strlen($post['topic_para'], 'UTF-8') > 120) {
+                                    $excerpt .= '...';
+                                }
+                                echo nl2br(htmlspecialchars($excerpt)); 
+                                ?>
+                            </div>
+                            
+                            <div class="post-card-stats">
+                                <div class="post-card-stat">
+                                    👁️ <?php echo $post['views_count']; ?>
+                                </div>
+                                <div class="post-card-stat">
+                                    ❤️ <?php echo $post['likes_count']; ?>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endwhile; ?>
+                </div>
+
+                <!-- 分页 -->
+                <?php if ($total_pages > 1): ?>
+                    <div class="pagination">
+                        <?php if ($current_page > 1): ?>
+                            <a href="?id=<?php echo $user_id; ?>&page=<?php echo $current_page - 1; ?>">‹ 上一页</a>
+                        <?php endif; ?>
+                        
+                        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+                            <?php if ($i == $current_page): ?>
+                                <span class="current-page"><?php echo $i; ?></span>
+                            <?php else: ?>
+                                <a href="?id=<?php echo $user_id; ?>&page=<?php echo $i; ?>"><?php echo $i; ?></a>
+                            <?php endif; ?>
+                        <?php endfor; ?>
+                        
+                        <?php if ($current_page < $total_pages): ?>
+                            <a href="?id=<?php echo $user_id; ?>&page=<?php echo $current_page + 1; ?>">下一页 ›</a>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
             <?php else: ?>
-                <a href="login.php">登录</a>
-                <a href="register.php">注册</a>
+                <div class="empty-state">
+                    <div class="empty-state-icon">📝</div>
+                    <div class="empty-state-text">
+                        <?php echo $is_own_profile ? '您还没有发布任何文章' : 'Ta 还没有发布任何文章'; ?>
+                    </div>
+                    <?php if ($is_own_profile): ?>
+                        <a href="new_post.php" class="btn">✍️ 撰写第一篇文章</a>
+                    <?php endif; ?>
+                </div>
             <?php endif; ?>
         </div>
     </div>
-    
-    <div class="main-content">
-        <?php if (isset($error)): ?>
-            <div class="error-message">
-                <h2>发生错误</h2>
-                <p><?php echo $error; ?></p>
-                <p><a href="index.php">返回首页</a></p>
-            </div>
-        <?php else: ?>
-            <div class="profile-container">
-                <div class="profile-header">
-                    <img src="avatars/<?php echo htmlspecialchars($user['avatar'] ?? 'default.jpg'); ?>" alt="用户头像" class="profile-avatar">
-                    <h1 class="profile-username"><?php echo htmlspecialchars($user['username']); ?></h1>
-                    <?php if (!empty($user['bio'])): ?>
-                        <div class="profile-bio"><?php echo nl2br(htmlspecialchars($user['bio'])); ?></div>
-                    <?php endif; ?>
-                </div>
-                
-                <div class="profile-stats">
-                    <div class="stat-item">
-                        <div class="stat-value"><?php echo $post_count; ?></div>
-                        <div class="stat-label">文章</div>
-                    </div>
-                    <div class="stat-item">
-                        <a href="following.php?id=<?php echo $user_id; ?>">
-                            <div class="stat-value"><?php echo $following_count; ?></div>
-                            <div class="stat-label">关注</div>
-                        </a>
-                    </div>
-                    <div class="stat-item">
-                        <a href="followers.php?id=<?php echo $user_id; ?>">
-                            <div class="stat-value"><?php echo $followers_count; ?></div>
-                            <div class="stat-label">粉丝</div>
-                        </a>
-                    </div>
-                </div>
-                
-                <div class="profile-actions">
-                    <?php if ($currentUserId > 0 && $currentUserId != $user_id): ?>
-                        <button id="followBtn" class="follow-btn <?php echo $is_following ? 'following' : 'not-following'; ?>" data-userid="<?php echo $user_id; ?>">
-                            <?php echo $is_following ? '已关注' : '关注'; ?>
-                        </button>
-                    <?php endif; ?>
-                    
-                    <?php if ($currentUserId == $user_id): ?>
-                        <a href="edit_profile.php" class="btn btn-outline">编辑资料</a>
-                    <?php endif; ?>
-                </div>
-                
-                <div class="profile-posts">
-                    <h2>最近发布的文章</h2>
-                    
-                    <div class="posts-grid">
-                        <?php 
-                        // 重新连接数据库获取最近的文章
-                        $conn = new mysqli(
-                            $config['db']['host'],
-                            $config['db']['username'],
-                            $config['db']['password'],
-                            $config['db']['database']
-                        );
-                        
-                        $posts_stmt = $conn->prepare("
-                            SELECT id, topic_title, topic_date, topic_para, image_filename
-                            FROM blog_table 
-                            WHERE user_id = ? 
-                            ORDER BY id DESC
-                            LIMIT 6
-                        ");
-                        $posts_stmt->bind_param("i", $user_id);
-                        $posts_stmt->execute();
-                        $posts_result = $posts_stmt->get_result();
-                        
-                        if ($posts_result->num_rows > 0) {
-                            while($post = $posts_result->fetch_assoc()) {
-                                // 创建摘要
-                                $title = htmlspecialchars($post['topic_title']);
-                                $date = htmlspecialchars($post['topic_date']);
-                                $post_id = $post['id'];
-                                
-                                echo '<div class="post-card">';
-                                echo '<a href="post.php?id=' . $post_id . '" class="post-card-link">';
-                                
-                                // 显示图片（如果有）
-                                if (!empty($post['image_filename']) && $post['image_filename'] != 'NONE') {
-                                    echo '<div class="post-card-image">';
-                                    echo '<img src="images/' . htmlspecialchars($post['image_filename']) . '" alt="文章配图">';
-                                    echo '</div>';
-                                } else {
-                                    // 如果没有图片，显示默认图片或占位符
-                                    echo '<div class="post-card-image post-card-no-image">';
-                                    echo '</div>';
-                                }
-                                
-                                echo '<div class="post-card-content">';
-                                echo '<h3 class="post-card-title">' . $title . '</h3>';
-                                echo '<div class="post-card-date">' . $date . '</div>';
-                                echo '</div>';
-                                
-                                echo '</a>';
-                                echo '</div>';
-                            }
-                        } else {
-                            echo '<div class="no-posts">暂无文章</div>';
-                        }
-                        
-                        $posts_stmt->close();
-                        $conn->close();
-                        ?>
-                    </div>
-                    
-                    <?php if ($post_count > 6): ?>
-                        <div class="view-all-posts">
-                            <a href="user_posts.php?id=<?php echo $user_id; ?>">查看全部 <?php echo $post_count; ?> 篇文章</a>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-        <?php endif; ?>
-    </div>
-    
+
     <script>
+    // 关注/取消关注功能
     const followBtn = document.getElementById('followBtn');
     if (followBtn) {
         followBtn.addEventListener('click', function() {
             const userId = this.getAttribute('data-userid');
+            const isCurrentlyFollowing = this.classList.contains('following');
+            
+            // 禁用按钮防止重复点击
+            this.disabled = true;
+            this.textContent = '处理中...';
             
             fetch('toggle_follow.php', {
                 method: 'POST',
@@ -563,28 +914,72 @@ $conn->close();
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    // 更新按钮状态
                     if (data.is_following) {
-                        followBtn.className = 'follow-btn following';
-                        followBtn.textContent = '已关注';
+                        this.className = 'follow-btn following';
+                        this.innerHTML = '✅ 已关注';
                     } else {
-                        followBtn.className = 'follow-btn not-following';
-                        followBtn.textContent = '关注';
+                        this.className = 'follow-btn not-following';
+                        this.innerHTML = '➕ 关注';
                     }
                     
-                    const followersCountElem = document.querySelector('.stat-item:nth-child(3) .stat-value');
-                    if (followersCountElem) {
-                        followersCountElem.textContent = data.followers_count;
+                    // 更新粉丝数量
+                    const followersCountElement = document.querySelector('.stat-card:nth-child(4) .stat-value');
+                    if (followersCountElement) {
+                        const currentCount = parseInt(followersCountElement.textContent);
+                        followersCountElement.textContent = data.is_following ? currentCount + 1 : currentCount - 1;
                     }
                 } else {
                     alert('操作失败: ' + data.message);
+                    // 恢复原始状态
+                    if (isCurrentlyFollowing) {
+                        this.className = 'follow-btn following';
+                        this.innerHTML = '✅ 已关注';
+                    } else {
+                        this.className = 'follow-btn not-following';
+                        this.innerHTML = '➕ 关注';
+                    }
                 }
             })
             .catch(error => {
                 console.error('关注操作失败:', error);
-                alert('操作失败，请稍后再试');
+                alert('网络错误，请稍后再试');
+                // 恢复原始状态
+                if (isCurrentlyFollowing) {
+                    this.className = 'follow-btn following';
+                    this.innerHTML = '✅ 已关注';
+                } else {
+                    this.className = 'follow-btn not-following';
+                    this.innerHTML = '➕ 关注';
+                }
+            })
+            .finally(() => {
+                this.disabled = false;
             });
         });
     }
+
+    // 文章卡片点击效果
+    document.querySelectorAll('.post-card').forEach(card => {
+        card.addEventListener('click', function(e) {
+            // 如果点击的不是链接，则跳转到文章页面
+            if (e.target.tagName !== 'A') {
+                const link = this.querySelector('.post-card-title a');
+                if (link) {
+                    window.location.href = link.href;
+                }
+            }
+        });
+    });
+
+    // 添加页面加载动画
+    document.addEventListener('DOMContentLoaded', function() {
+        const cards = document.querySelectorAll('.post-card');
+        cards.forEach((card, index) => {
+            card.style.animationDelay = `${0.1 * (index % 4)}s`;
+            card.style.animation = 'fadeInUp 0.6s ease-out forwards';
+        });
+    });
     </script>
 </body>
 </html>

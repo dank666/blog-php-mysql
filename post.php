@@ -183,169 +183,245 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $error ? "错误" : htmlspecialchars($post['topic_title']); ?> - 博客系统</title>
+    <title><?php echo $error ? "错误" : htmlspecialchars($post['topic_title']); ?> - 智域博客</title>
     <link rel="stylesheet" href="styles/style.css">
+    <link rel="stylesheet" href="styles/navbar.css">
     <style>
+        /* 整体页面美化 - 与主界面保持一致 */
         body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
             margin: 0;
-            padding: 0;
-            background-color: #f5f5f5;
-        }
-        
-        .main-content {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-            text-align: center; /* 居中对齐 */
-        }
-        
-        .post-container {
-            max-width: 800px;
-            margin: 20px auto;
-            padding: 30px;
-            background-color: white;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            border-radius: 5px;
-            text-align: left; /* 文章内容左对齐 */
-        }
-        
-        .post-title {
-            margin-bottom: 15px;
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
             color: #333;
-            font-size: 28px;
+        }
+
+        /* 隐藏旧的top-bar */
+        .top-bar {
+            display: none;
         }
         
+        /* 主布局美化 */
+        .main-content {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+        
+        /* 文章容器美化 - 与主界面post-container风格一致 */
+        .post-container {
+            margin-bottom: 30px;
+            padding: 40px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .post-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #4ecdc4);
+            opacity: 1;
+        }
+        
+        /* 文章标题美化 */
+        .post-title {
+            margin: 0 0 30px 0;
+            color: #667eea;
+            font-size: 32px;
+            font-weight: 700;
+            line-height: 1.3;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        /* 文章元信息美化 */
         .post-meta {
-            color: #666;
-            margin-bottom: 25px;
             display: flex;
             align-items: center;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 15px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(102, 126, 234, 0.08);
+            border-radius: 15px;
+            border-left: 4px solid #667eea;
         }
         
         .post-meta img {
-            width: 50px;
-            height: 50px;
+            width: 60px;
+            height: 60px;
             border-radius: 50%;
-            margin-right: 15px;
-            border: 2px solid #f0f0f0;
+            margin-right: 20px;
+            border: 3px solid rgba(102, 126, 234, 0.2);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .post-meta-info {
+            flex: 1;
+        }
+
+        .post-meta-info p {
+            margin: 5px 0;
+            font-size: 15px;
+            color: #555;
+        }
+
+        .post-meta-info a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s ease;
+        }
+
+        .post-meta-info a:hover {
+            color: #764ba2;
         }
         
-        /* 修改正文样式，使其更加突出 */
-        .post-content {
-            line-height: 1.8;
-            font-size: 16px;
-            color: #444;
-            background-color: #f9f9f9;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 25px;
-            margin: 20px 0;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        }
-        
-        /* 调整位置信息和发布日期样式 */
-        .post-date, .post-location {
-            margin-bottom: 10px;
-            color: #666;
-            font-size: 14px;
-        }
-        
-        .post-location {
-            display: flex;
+        /* 发布日期和位置信息美化 */
+        .post-date {
+            display: inline-flex;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
+            padding: 8px 15px;
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 20px;
+            font-size: 14px;
+            color: #667eea;
+            font-weight: 500;
         }
-        
+
+        .post-location {
+            display: inline-flex;
+            align-items: center;
+            margin-bottom: 25px;
+            padding: 8px 15px;
+            background: rgba(78, 205, 196, 0.1);
+            border-radius: 20px;
+            font-size: 14px;
+            color: #4ecdc4;
+            font-weight: 500;
+        }
+
         .location-icon {
             margin-right: 5px;
             font-style: normal;
         }
         
-        /* 调整标签区域样式 */
-        .post-tags {
-            margin-top: 20px;
-            padding-top: 15px;
-            border-top: 1px dashed #e0e0e0;
-            font-size: 14px;
-            color: #666;
-        }
-        
-        .error-message {
-            color: #d9534f;
+        /* 文章图片美化 */
+        .post-image {
+            margin: 25px 0;
             text-align: center;
-            margin: 40px 0;
-            padding: 20px;
-            background-color: #f9f2f2;
-            border-radius: 5px;
-        }
-        
-        .action-links {
-            margin-top: 30px;
-            padding-top: 15px;
-            border-top: 1px solid #eee;
-            text-align: center;
-        }
-        
-        .action-links a {
-            color: #007bff;
-            text-decoration: none;
-            margin: 0 10px;
-        }
-        
-        .action-links a:hover {
-            text-decoration: underline;
-        }
-        
-        /* 统一顶部导航栏样式 */
-        .top-bar {
-            background-color: #333;
-            color: white;
-            padding: 10px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        #topBarTitle {
-            font-size: 20px;
-            font-weight: bold;
-        }
-        
-        /* 添加蓝色导航链接样式，与admin.php相同 */
-        .top-bar-right a {
-            color: #007bff;
-            text-decoration: none;
-            margin-left: 15px;
-            transition: color 0.2s;
-        }
-        
-        .top-bar-right a:hover {
-            color: #0056b3;
-            text-decoration: underline;
         }
 
-        /* 点赞按钮样式 */
+        .post-image img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            transition: transform 0.3s ease;
+        }
+
+        .post-image img:hover {
+            transform: scale(1.02);
+        }
+        
+        /* 文章内容美化 */
+        .post-content {
+            line-height: 1.8;
+            font-size: 17px;
+            color: #444;
+            background: rgba(248, 249, 250, 0.8);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 25px 0;
+            border: 1px solid rgba(102, 126, 234, 0.1);
+            position: relative;
+        }
+
+        .post-content::before {
+            content: '📝';
+            position: absolute;
+            top: -10px;
+            left: 20px;
+            background: white;
+            padding: 0 10px;
+            font-size: 20px;
+        }
+        
+        /* 标签区域美化 */
+        .post-tags {
+            margin: 25px 0;
+            padding: 20px;
+            background: rgba(78, 205, 196, 0.08);
+            border-radius: 15px;
+            border: 1px solid rgba(78, 205, 196, 0.2);
+        }
+
+        .post-tags strong {
+            color: #4ecdc4;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+
+        .tag-item {
+            display: inline-block;
+            margin: 5px 8px 5px 0;
+            padding: 6px 15px;
+            background: linear-gradient(45deg, #4ecdc4, #44a08d);
+            color: white;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            box-shadow: 0 3px 10px rgba(78, 205, 196, 0.3);
+        }
+        
+        /* 操作按钮区域美化 */
+        .post-actions {
+            margin-top: 30px;
+            padding: 25px;
+            background: rgba(102, 126, 234, 0.05);
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            border: 1px solid rgba(102, 126, 234, 0.1);
+        }
+        
+        /* 点赞按钮美化 */
         .like-button {
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            background-color: #f0f0f0;
-            color: #333;
-            border: 1px solid #ddd;
-            padding: 8px 15px;
-            border-radius: 20px;
+            gap: 8px;
+            padding: 12px 25px;
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            color: white;
+            border: none;
+            border-radius: 25px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            font-size: 14px;
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.3);
+        }
+        
+        .like-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.4);
         }
         
         .like-button.liked {
-            background-color: #ffebee;
-            color: #e53935;
-            border-color: #ffcdd2;
+            background: linear-gradient(45deg, #e91e63, #ad1457);
+            box-shadow: 0 5px 15px rgba(233, 30, 99, 0.4);
         }
         
         .like-button svg {
@@ -354,63 +430,123 @@ $conn->close();
             fill: currentColor;
         }
 
-        /* 修改按钮和操作区域的样式 */
-        .post-actions {
-            margin-top: 30px;
-            padding-top: 15px;
-            border-top: 1px solid #eee;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-        
         /* 统一按钮样式 */
         .btn {
             display: inline-block;
-            padding: 8px 16px;
-            background-color: #007bff;
+            padding: 12px 25px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             text-decoration: none;
-            border-radius: 4px;
+            border-radius: 25px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
             border: none;
             cursor: pointer;
-            transition: background-color 0.2s;
+            font-size: 14px;
         }
         
         .btn:hover {
-            background-color: #0056b3;
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+            color: white;
         }
         
         .btn-danger {
-            background-color: #dc3545;
-        }
-        
-        .btn-danger:hover {
-            background-color: #c82333;
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.3);
         }
 
-        /* 评论区样式 */
+        .btn-danger:hover {
+            box-shadow: 0 10px 25px rgba(255, 107, 107, 0.4);
+        }
+
+        /* 关注按钮美化 */
+        .follow-btn-small {
+            padding: 6px 15px;
+            border-radius: 20px;
+            border: 2px solid #667eea;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            outline: none;
+            margin-left: 10px;
+        }
+
+        .follow-btn-small.following {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border-color: #667eea;
+        }
+
+        .follow-btn-small.not-following {
+            background: white;
+            color: #667eea;
+            border-color: #667eea;
+        }
+
+        .follow-btn-small:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        /* 评论区美化 */
         .comments-section {
             margin-top: 40px;
-            border-top: 1px solid #eee;
-            padding-top: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
+        .comments-section h3 {
+            margin-top: 0;
+            margin-bottom: 25px;
+            color: #667eea;
+            font-size: 24px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .comments-section h3::before {
+            content: '💬';
+            font-size: 28px;
+        }
+
+        /* 评论表单美化 */
         .comment-form {
             margin-bottom: 30px;
+            padding: 25px;
+            background: rgba(102, 126, 234, 0.05);
+            border-radius: 15px;
+            border: 1px solid rgba(102, 126, 234, 0.1);
         }
 
         .comment-form textarea {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            min-height: 80px;
-            margin-bottom: 10px;
+            padding: 15px 20px;
+            border: 2px solid rgba(102, 126, 234, 0.2);
+            border-radius: 15px;
+            min-height: 100px;
+            margin-bottom: 15px;
             font-family: inherit;
-            resize: none; /* 禁止调整大小 */
+            font-size: 15px;
+            resize: vertical;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
         }
 
+        .comment-form textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 15px rgba(102, 126, 234, 0.2);
+        }
+
+        /* 评论列表美化 */
         .comments-list {
             list-style: none;
             padding: 0;
@@ -418,114 +554,189 @@ $conn->close();
         }
 
         .comment-item {
-            padding: 15px;
-            border-bottom: 1px solid #eee;
-            margin-bottom: 15px;
-            background-color: #f9f9f9;
-            border-radius: 5px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background: rgba(248, 249, 250, 0.8);
+            border-radius: 15px;
+            border: 1px solid rgba(102, 126, 234, 0.1);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .comment-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
         }
 
         .comment-header {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 8px;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(102, 126, 234, 0.1);
         }
 
         .comment-author {
-            font-weight: bold;
-            color: #333;
+            font-weight: 600;
+            color: #667eea;
+            font-size: 15px;
         }
 
         .comment-date {
-            color: #888;
-            font-size: 0.9em;
+            color: #999;
+            font-size: 13px;
         }
 
         .comment-content {
-            margin: 10px 0;
-            line-height: 1.4;
+            margin: 15px 0;
+            line-height: 1.6;
+            color: #444;
+            font-size: 15px;
         }
 
         .comment-actions {
-            margin-top: 10px;
+            margin-top: 15px;
             text-align: right;
         }
 
         .comment-delete {
-            color: #e53935;
+            color: #ff6b6b;
             background: none;
             border: none;
-            padding: 0;
+            padding: 5px 10px;
             font: inherit;
             cursor: pointer;
-            text-decoration: underline;
+            border-radius: 15px;
+            transition: all 0.3s ease;
+            font-size: 13px;
+        }
+
+        .comment-delete:hover {
+            background: rgba(255, 107, 107, 0.1);
+            color: #ee5a24;
+        }
+
+        /* 状态提示美化 */
+        .loading-comments,
+        .no-comments,
+        .error-message {
+            text-align: center;
+            padding: 30px 20px;
+            border-radius: 15px;
+            margin: 20px 0;
+            font-size: 16px;
         }
 
         .loading-comments {
-            color: #888;
+            color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+            border: 1px solid rgba(102, 126, 234, 0.2);
+        }
+
+        .no-comments {
+            color: #999;
+            background: rgba(102, 126, 234, 0.05);
+            border: 2px dashed rgba(102, 126, 234, 0.2);
+        }
+
+        .error-message {
+            color: #ff6b6b;
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid rgba(255, 107, 107, 0.2);
+            margin: 40px 0;
+        }
+        
+        /* 返回链接美化 */
+        .action-links {
+            margin-top: 40px;
             text-align: center;
-            padding: 10px;
-        }
-
-        .follow-btn-small {
-            padding: 3px 8px;
+            padding: 25px;
+            background: rgba(102, 126, 234, 0.05);
             border-radius: 15px;
-            border: 1px solid #007bff;
-            font-size: 12px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.2s;
-            outline: none;
-            margin-left: 5px;
+            border: 1px solid rgba(102, 126, 234, 0.1);
         }
-
-        .follow-btn-small.following {
-            background-color: #007bff;
+        
+        .action-links a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 16px;
+            padding: 12px 25px;
+            border-radius: 25px;
+            background: white;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+        
+        .action-links a:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+            background: linear-gradient(45deg, #667eea, #764ba2);
             color: white;
         }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .main-content {
+                padding: 20px 15px;
+            }
+            
+            .post-container {
+                padding: 25px;
+            }
 
-        .follow-btn-small.not-following {
-            background-color: white;
-            color: #007bff;
+            .post-title {
+                font-size: 26px;
+            }
+
+            .post-meta {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .post-meta img {
+                margin: 0 0 15px 0;
+            }
+
+            .post-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .post-actions > * {
+                margin-bottom: 10px;
+            }
+
+            .comments-section {
+                padding: 20px;
+            }
+
+            .comment-form {
+                padding: 20px;
+            }
         }
 
-        .follow-btn-small:hover.not-following {
-            background-color: #f0f8ff;
-        }
-
-        .follow-btn-small:hover.following {
-            background-color: #0056b3;
+        /* 毛玻璃效果增强 */
+        @supports (backdrop-filter: blur(10px)) {
+            .post-container,
+            .comments-section {
+                backdrop-filter: blur(15px);
+            }
         }
     </style>
 </head>
 <body>
-    <div class="top-bar">
-        <span id="topBarTitle">智域博客</span>
-        <div class="top-bar-right">
-            <a href="index.php">首页</a>
-            <?php if (isLoggedIn()): ?>
-                <a href="profile.php">我的资料</a>
-                <a href="following.php">我的关注</a>
-                <a href="followers.php">我的粉丝</a>
-                <?php if (isAdmin()): ?>
-                    <a href="admin.php">管理面板</a>
-                <?php endif; ?>
-                <a href="settings.php">设置</a>
-                <a href="logout.php">退出</a>
-            <?php else: ?>
-                <a href="login.php">登录</a>
-                <a href="register.php">注册</a>
-            <?php endif; ?>
-        </div>
-    </div>
+    <?php include 'includes/navbar.php'; ?>
     
     <div class="main-content">
         <div class="post-container">
             <?php if ($error): ?>
                 <div class="error-message">
-                    <h2>发生错误</h2>
+                    <h2>🚫 发生错误</h2>
                     <p><?php echo $error; ?></p>
-                    <p><a href="index.php">返回首页</a></p>
+                    <p><a href="index.php" class="btn">🏠 返回首页</a></p>
                 </div>
             <?php else: ?>
                 <h1 class="post-title"><?php echo htmlspecialchars($post['topic_title']); ?></h1>
@@ -533,8 +744,8 @@ $conn->close();
                 <div class="post-meta">
                     <?php if ($author): ?>
                         <img src="avatars/<?php echo htmlspecialchars($author['avatar'] ?? 'default.jpg'); ?>" alt="头像">
-                        <div>
-                            <p>作者: <a href="profile.php?id=<?php echo $author['id']; ?>"><?php echo htmlspecialchars($author['username']); ?></a>
+                        <div class="post-meta-info">
+                            <p>👤 作者: <a href="profile.php?id=<?php echo $author['id']; ?>"><?php echo htmlspecialchars($author['username']); ?></a>
                                 <?php 
                                 // 如果当前用户已登录且不是作者本人，显示关注按钮
                                 if (isLoggedIn() && getCurrentUserId() != $author['id']): 
@@ -561,25 +772,17 @@ $conn->close();
                                     </button>
                                 <?php endif; ?>
                             </p>
-                            <p>浏览量: <?php echo $views_count; ?></p>
+                            <p>👁️ 浏览量: <?php echo $views_count; ?></p>
                         </div>
                     <?php else: ?>
-                        <div>
-                            <p>作者: [已删除]</p>
-                            <p>浏览量: <?php echo $views_count; ?></p>
+                        <div class="post-meta-info">
+                            <p>👤 作者: [已删除]</p>
+                            <p>👁️ 浏览量: <?php echo $views_count; ?></p>
                         </div>
                     <?php endif; ?>
                 </div>
                 
-                <?php if (!empty($post['image_filename']) && $post['image_filename'] !== "NONE"): ?>
-                    <div class="post-image">
-                        <img src="images/<?php echo htmlspecialchars($post['image_filename']); ?>" 
-                             alt="<?php echo htmlspecialchars($post['topic_title']); ?>" style="max-width:100%;">
-                    </div>
-                <?php endif; ?>
-                
-                <!-- 在显示文章内容的地方添加位置信息 -->
-                <div class="post-date">发布于: <?php echo htmlspecialchars($post['topic_date']); ?></div>
+                <div class="post-date">📅 发布于: <?php echo htmlspecialchars($post['topic_date']); ?></div>
 
                 <?php if (!empty($post['location'])): ?>
                 <div class="post-location">
@@ -588,37 +791,48 @@ $conn->close();
                 </div>
                 <?php endif; ?>
 
-                <h3>文章内容</h3>
+                <?php if (!empty($post['image_filename']) && $post['image_filename'] !== "NONE"): ?>
+                    <div class="post-image">
+                        <img src="images/<?php echo htmlspecialchars($post['image_filename']); ?>" 
+                             alt="<?php echo htmlspecialchars($post['topic_title']); ?>">
+                    </div>
+                <?php endif; ?>
+
                 <div class="post-content">
                     <?php echo nl2br(htmlspecialchars($post['topic_para'])); ?>
                 </div>
                 
                 <!-- 显示文章标签 -->
+                <?php if (!empty($tags)): ?>
                 <div class="post-tags">
-                    <strong>标签：</strong> <?php echo implode(', ', $tags); ?>
+                    <strong>🏷️ 标签：</strong>
+                    <?php foreach ($tags as $tag): ?>
+                        <span class="tag-item"><?php echo htmlspecialchars($tag); ?></span>
+                    <?php endforeach; ?>
                 </div>
+                <?php endif; ?>
                 
                 <!-- 点赞和操作按钮 -->
                 <div class="post-actions">
                     <?php if (isLoggedIn()): ?>
                         <button id="likeButton" class="like-button <?php echo $user_liked ? 'liked' : ''; ?>" data-post-id="<?php echo $post_id; ?>">
                             <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                            点赞 (<span id="likesCount"><?php echo $likes_count; ?></span>)
+                            <span id="likesCount"><?php echo $likes_count; ?></span> 人点赞
                         </button>
                     <?php else: ?>
                         <span class="like-button">
                             <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                            点赞 (<?php echo $likes_count; ?>)
+                            <?php echo $likes_count; ?> 人点赞
                         </span>
                     <?php endif; ?>
                     
                     <?php if (isLoggedIn() && ($post['user_id'] == getCurrentUserId() || isAdmin())): ?>
-                        <a href="edit_post.php?id=<?php echo $post_id; ?>" class="btn">编辑文章</a>
-                        <a href="delete_post.php?id=<?php echo $post_id; ?>" class="btn btn-danger" onclick="return confirm('确定要删除这篇文章吗?');">删除文章</a>
+                        <a href="edit_post.php?id=<?php echo $post_id; ?>" class="btn">✏️ 编辑文章</a>
+                        <a href="delete_post.php?id=<?php echo $post_id; ?>" class="btn btn-danger" onclick="return confirm('确定要删除这篇文章吗?');">🗑️ 删除文章</a>
                     <?php endif; ?>
                 </div>
                 
-                <!-- 在 action-links div 前添加评论区 -->
+                <!-- 评论区 -->
                 <div class="comments-section">
                     <h3>评论 (<span id="commentsCount">0</span>)</h3>
                     
@@ -626,22 +840,25 @@ $conn->close();
                         <div class="comment-form">
                             <form id="commentForm">
                                 <input type="hidden" name="post_id" value="<?php echo $post_id; ?>">
-                                <textarea name="content" placeholder="写下您的评论..." required></textarea>
-                                <button type="submit" class="btn">发表评论</button>
+                                <textarea name="content" placeholder="💭 写下您的精彩评论..." required></textarea>
+                                <button type="submit" class="btn">💬 发表评论</button>
                             </form>
                         </div>
                     <?php else: ?>
-                        <p><a href="login.php">登录</a> 后才能发表评论</p>
+                        <div class="comment-form">
+                            <p style="text-align: center; color: #999; margin: 20px 0;">
+                                <a href="login.php" class="btn">🔑 登录</a> 后才能发表评论
+                            </p>
+                        </div>
                     <?php endif; ?>
                     
                     <ul class="comments-list" id="commentsList">
-                        <!-- 评论将通过JavaScript加载 -->
-                        <li class="loading-comments">加载评论中...</li>
+                        <li class="loading-comments">🔄 加载评论中...</li>
                     </ul>
                 </div>
 
                 <div class="action-links">
-                    <a href="index.php">返回首页</a>
+                    <a href="index.php">🏠 返回首页</a>
                 </div>
             <?php endif; ?>
         </div>
@@ -684,7 +901,7 @@ $conn->close();
                 commentsList.innerHTML = '';
                 
                 if (data.length === 0) {
-                    commentsList.innerHTML = '<li class="no-comments">暂无评论，快来发表第一条评论吧！</li>';
+                    commentsList.innerHTML = '<li class="no-comments">📝 暂无评论，快来发表第一条评论吧！</li>';
                 } else {
                     data.forEach(comment => {
                         const li = document.createElement('li');
@@ -699,7 +916,7 @@ $conn->close();
                             <div class="comment-content">${comment.content}</div>
                             ${(<?php echo $current_user_id; ?> === parseInt(comment.user_id) || <?php echo isAdmin() ? 'true' : 'false'; ?>) ? 
                                 `<div class="comment-actions">
-                                    <button class="comment-delete" data-id="${comment.id}">删除</button>
+                                    <button class="comment-delete" data-id="${comment.id}">🗑️ 删除</button>
                                 </div>` : ''}
                         `;
                         
@@ -721,7 +938,7 @@ $conn->close();
             })
             .catch(error => {
                 console.error('加载评论失败:', error);
-                commentsList.innerHTML = '<li class="error-message">加载评论失败</li>';
+                commentsList.innerHTML = '<li class="error-message">❌ 加载评论失败</li>';
             });
     }
 
@@ -746,7 +963,7 @@ $conn->close();
                     // 如果没有评论了，显示"暂无评论"提示
                     if (currentCount - 1 === 0) {
                         document.getElementById('commentsList').innerHTML = 
-                            '<li class="no-comments">暂无评论，快来发表第一条评论吧！</li>';
+                            '<li class="no-comments">📝 暂无评论，快来发表第一条评论吧！</li>';
                     }
                 }
             } else {
@@ -757,37 +974,40 @@ $conn->close();
     }
 
     // 提交评论
-    document.getElementById('commentForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const formData = new FormData(this);
-        const submitButton = this.querySelector('button[type="submit"]');
-        submitButton.disabled = true;
-        submitButton.textContent = '发表中...';
-        
-        fetch('add_comment.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            submitButton.disabled = false;
-            submitButton.textContent = '发表评论';
+    const commentForm = document.getElementById('commentForm');
+    if (commentForm) {
+        commentForm.addEventListener('submit', function(e) {
+            e.preventDefault();
             
-            if (data.success) {
-                this.reset();
-                loadComments();
-            } else {
-                alert('发表评论失败: ' + data.message);
-            }
-        })
-        .catch(error => {
-            console.error('发表评论失败:', error);
-            submitButton.disabled = false;
-            submitButton.textContent = '发表评论';
-            alert('发表评论失败，请稍后再试');
+            const formData = new FormData(this);
+            const submitButton = this.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            submitButton.textContent = '💬 发表中...';
+            
+            fetch('add_comment.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                submitButton.disabled = false;
+                submitButton.textContent = '💬 发表评论';
+                
+                if (data.success) {
+                    this.reset();
+                    loadComments();
+                } else {
+                    alert('发表评论失败: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('发表评论失败:', error);
+                submitButton.disabled = false;
+                submitButton.textContent = '💬 发表评论';
+                alert('发表评论失败，请稍后再试');
+            });
         });
-    });
+    }
 
     // 作者关注按钮功能
     const authorFollowBtn = document.getElementById('authorFollowBtn');
