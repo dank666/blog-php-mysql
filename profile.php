@@ -282,6 +282,19 @@ $conn->close();
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        /* 让粉丝数和关注数可点击 */
+        .stat-card.clickable {
+            cursor: pointer;
+        }
+
+        .stat-card.clickable:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+            background: rgba(255, 255, 255, 1);
         }
 
         .stat-card::before {
@@ -317,6 +330,14 @@ $conn->close();
             align-items: center;
             justify-content: center;
             gap: 5px;
+        }
+
+        /* 点击提示样式 */
+        .stat-card.clickable .stat-label::after {
+            content: '👆';
+            font-size: 12px;
+            margin-left: 5px;
+            opacity: 0.7;
         }
 
         /* 操作按钮区域美化 */
@@ -781,14 +802,16 @@ $conn->close();
                     <div class="stat-value"><?php echo $total_likes; ?></div>
                     <div class="stat-label">❤️ 获得点赞</div>
                 </div>
-                <div class="stat-card">
+                <!-- 让粉丝数可点击 -->
+                <a href="followers.php?id=<?php echo $user_id; ?>" class="stat-card clickable">
                     <div class="stat-value"><?php echo $followers_count; ?></div>
                     <div class="stat-label">👥 粉丝数</div>
-                </div>
-                <div class="stat-card">
+                </a>
+                <!-- 让关注数可点击 -->
+                <a href="following.php?id=<?php echo $user_id; ?>" class="stat-card clickable">
                     <div class="stat-value"><?php echo $following_count; ?></div>
                     <div class="stat-label">➕ 关注数</div>
-                </div>
+                </a>
             </div>
 
             <!-- 操作按钮 -->
@@ -924,7 +947,7 @@ $conn->close();
                     }
                     
                     // 更新粉丝数量
-                    const followersCountElement = document.querySelector('.stat-card:nth-child(4) .stat-value');
+                    const followersCountElement = document.querySelector('.stat-card.clickable .stat-value');
                     if (followersCountElement) {
                         const currentCount = parseInt(followersCountElement.textContent);
                         followersCountElement.textContent = data.is_following ? currentCount + 1 : currentCount - 1;
@@ -978,6 +1001,19 @@ $conn->close();
         cards.forEach((card, index) => {
             card.style.animationDelay = `${0.1 * (index % 4)}s`;
             card.style.animation = 'fadeInUp 0.6s ease-out forwards';
+        });
+    });
+
+    // 为统计卡片添加点击提示效果
+    document.querySelectorAll('.stat-card.clickable').forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-8px) scale(1.02)';
+            this.style.boxShadow = '0 20px 50px rgba(102, 126, 234, 0.3)';
+        });
+        
+        card.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(-5px) scale(1)';
+            this.style.boxShadow = '0 15px 40px rgba(0, 0, 0, 0.15)';
         });
     });
     </script>
